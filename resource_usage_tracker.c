@@ -6,7 +6,10 @@
 
 #define DEBUG_RUT
 
-#define INTERVAL 1000 // 1000 is consistent minimum for cpu
+#define INTERVAL 1 // 1000 is consistent minimum for cpu
+
+#define RED_BOLD(X) 	"\033[1;31m"X"\033[0m"
+#define CYAN_BOLD(X) 	"\033[1;34m"X"\033[0m"
 
 #define KILOBYTE 1024
 #define MEGABYTE (KILOBYTE * KILOBYTE)
@@ -18,13 +21,14 @@
 #define PATH_MOUNT_STATS 	PATH_PROC "self/mountstats"
 #define PATH_MEM_INFO 		PATH_PROC "meminfo"
 
-#define PASS_WITH_SIZEOF(X) X, sizeof(X)
-#define PASS_WITH_SIZE_VAR(X) X, X##_size
-#define REQUIRE_WITH_SIZE(TYPE, X) TYPE X, const size_t X## _size
-#define FUNCSOUT(X) printf(#X": %s\n", X);
+#define PASS_WITH_SIZEOF(X) 		X, sizeof(X)
+#define PASS_WITH_SIZE_VAR(X) 		X, X##_size
+#define REQUIRE_WITH_SIZE(TYPE, X) 	TYPE X, const size_t X## _size
+#define SOUT(X) 					printf(CYAN_BOLD(#X)": %s\n", X);
 
 
-// Returns STR's size 
+
+// Returns STR's lenght 
 size_t strptrlen(char *str){
 	char *tmp = str;
 	size_t str_lenght = 0;
@@ -65,23 +69,38 @@ char* run_command(char* command){
 	return output;
 }
 
+char* getColumn(char* str, const uint16_t column_no, REQUIRE_WITH_SIZE(const char*, delim)){
+	char* token;
+
+	token = strtok(str, delim);
+	for (uint16_t i = 1; i < column_no ; i++){
+		token = strtok(NULL, delim);
+	}
+
+	return token;
+}
+
 // Read PATH
 // Search for SEARCH_KEY at COLUMN (#)
 // Where columns are seperated with DELIM
 // Return the line where it is found 
-char* readSearchGetLine(const char* path, REQUIRE_WITH_SIZE(const char*, search_key), const uint16_t column, REQUIRE_WITH_SIZE(const char*, delim)){
+char* readSearchGetFirstLine(const char* path, REQUIRE_WITH_SIZE(const char*, search_key), const uint16_t column, REQUIRE_WITH_SIZE(const char*, delim)){
 	const uint16_t buffer_size = KILOBYTE;
-	char* token;
 
 	FILE *fp = fopen(path, "r");
 	if (fp == NULL){
-		return strcat("Could not read the file: ", path);
+		return strcat( RED_BOLD("[ERROR]") " Could not read the file: ", path);
 	}
 
-	char *output = NULL, *line = NULL;
+	char 	*output = NULL,
+			*line = NULL,
+			*token = NULL;
+
 	size_t output_size = 0;
+
 	output = (char *)malloc(output_size);
 	line = (char *)malloc(buffer_size);
+	
 	*output = '\0';
 
 	uint16_t i;
@@ -95,8 +114,9 @@ char* readSearchGetLine(const char* path, REQUIRE_WITH_SIZE(const char*, search_
 		for (i = 1; i < column; i++)
 			token = strtok(NULL, delim);
 		
-		if ( !strncmp(token, search_key, search_key_size-1) )
+		if ( !strcmp(token, search_key) )
 		{
+
 			return output;
 		} else {
 			output = NULL;
@@ -117,7 +137,7 @@ void getCpuTimings(uint32_t *cpu_total, uint32_t *cpu_idle){
 	uint8_t i = 0;
 	char* token;
 
-	token = strtok(readSearchGetLine(PATH_CPU_STATS, PASS_WITH_SIZEOF("cpu"), 1, PASS_WITH_SIZEOF(" ")), delim);
+	token = strtok(readSearchGetFirstLine(PATH_CPU_STATS, PASS_WITH_SIZEOF("cpu"), 1, PASS_WITH_SIZEOF(" ")), delim);
 	token = strtok(NULL, delim); // skip cpu_id
 
 	while ( token != NULL){
@@ -149,7 +169,7 @@ float getCpuUsage(const unsigned int ms_interval){
 
 	usage = (float) (1.0 - (long double) (idle-prev_idle) / (long double) (total-prev_total) ) * 100.0;
 #ifdef DEBUG_RUT
-	printf("CPU Usage: %2.2f%%\n", usage);
+	printf(CYAN_BOLD("getCpuUsage()")" | usage = %2.2f%%\n", usage);
 #endif
 	return usage;
 }
@@ -160,25 +180,68 @@ uint64_t getFirstVarNumValue( const char* path, REQUIRE_WITH_SIZE(const char*, v
 	const char delim[2] = " ";
 	char* token;
 
-	token = strtok(readSearchGetLine( path, PASS_WITH_SIZE_VAR(variable), variable_column_no, PASS_WITH_SIZEOF(delim) ), delim);
+	token = strtok(readSearchGetFirstLine( path, PASS_WITH_SIZE_VAR(variable), variable_column_no, PASS_WITH_SIZEOF(delim) ), delim);
 	token = strtok(NULL, delim); // skip VARIABLE
 
 	if (token) {
 		output = atoll(token) * KILOBYTE; // Convert to BYTE
 	} else {
-		printf("[ERROR] Could NOT parse the value of: %s\n", variable);
+		printf(RED_BOLD("[ERROR]") " Could NOT parse the value of: "RED_BOLD("%s")"\n", variable);
 		return 0;
 	}
 #ifdef DEBUG_RUT
-	printf("%s: %llu\n", variable, output);
+	printf(CYAN_BOLD("getFirstVarNumValue()")" | %s = %llu\n", variable, output);
 #endif
 	return output;
 }
 
-char* getBootDisk(){
-	char* output = NULL;
+uint16_t trimTill(char *strptr, const char ch){
+	const char *ptr = NULL;
+	uint16_t index = 0;
+	do {
+		ptr = strchr(strptr+index, '/');
+		if(ptr) {
+			index = ptr - strptr;
+			*(strptr + index) = 2; // STX
+		}
+	} while(ptr != NULL);
 
-	output = readSearchGetLine(PATH_MOUNT_STATS, PASS_WITH_SIZEOF("/boot/efi"), 5, PASS_WITH_SIZEOF(" "));
+	uint16_t output_len = strptrlen(strptr);
+	memmove(strptr, strptr+index+1, output_len);
+
+	return output_len - index - 1;
+}
+
+char* getBootDisk(char* os_partition_name, char* maj_no){
+	const char disk_min_no = '0';
+	os_partition_name = NULL;
+	maj_no = NULL;
+	
+	char* output = NULL;
+	
+	os_partition_name = getColumn(
+		readSearchGetFirstLine(PATH_MOUNT_STATS, PASS_WITH_SIZEOF("/"), 5, PASS_WITH_SIZEOF(" ")),
+		2,
+		PASS_WITH_SIZEOF(" ")
+	);
+
+	const uint16_t os_partition_name_size = trimTill(os_partition_name, '/'); // Trim path
+
+	maj_no = getColumn(
+		readSearchGetFirstLine(PATH_DISK_STATS, PASS_WITH_SIZE_VAR(os_partition_name), 3, PASS_WITH_SIZEOF(" ")),
+		1,
+		PASS_WITH_SIZEOF(" ")
+	);
+
+	output = getColumn(
+		readSearchGetFirstLine(PATH_DISK_STATS, PASS_WITH_SIZEOF(maj_no), 1, PASS_WITH_SIZEOF(" ")),
+		3,
+		PASS_WITH_SIZEOF(" ")
+		);
+
+#ifdef DEBUG_RUT
+	printf(CYAN_BOLD("getBootDisk()")" | output = %s | os_partition_name = %s | maj_no = %s\n", output, os_partition_name, maj_no);
+#endif
 
 	return output;
 }
@@ -186,10 +249,11 @@ char* getBootDisk(){
 int main (){
 	printf("\n");
 
+	getBootDisk(NULL, NULL);
+
 	getCpuUsage(INTERVAL); // <-- Run this first to synchronize after sleep
-	getFirstVarNumValue(PATH_MEM_INFO, PASS_WITH_SIZEOF("Active"), 0);
-	getFirstVarNumValue(PATH_MEM_INFO, PASS_WITH_SIZEOF("MemTotal"), 0);
-	FUNCSOUT(getBootDisk());
+	getFirstVarNumValue(PATH_MEM_INFO, PASS_WITH_SIZEOF("Active:"), 0);
+	getFirstVarNumValue(PATH_MEM_INFO, PASS_WITH_SIZEOF("MemTotal:"), 0);
 
 	return (EXIT_SUCCESS);
 }
