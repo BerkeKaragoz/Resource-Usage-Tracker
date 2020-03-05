@@ -6,17 +6,22 @@
 
 #define DEBUG_RUT
 
+#define INTERVAL 1000 // 1000 is consistent minimum for cpu
+
 #define KILOBYTE 1024
 #define MEGABYTE (KILOBYTE * KILOBYTE)
 #define GIGABYTE (KILOBYTE * MEGABYTE)
 
-#define PATH_CPU_STATS "/proc/stat"
-#define PATH_DISK_STATS "/proc/diskstats"
-#define PATH_MEM_INFO "/proc/meminfo"
+#define PATH_PROC 			"/proc/"
+#define PATH_CPU_STATS		PATH_PROC "stat"
+#define PATH_DISK_STATS 	PATH_PROC "diskstats"
+#define PATH_MOUNT_STATS 	PATH_PROC "self/mountstats"
+#define PATH_MEM_INFO 		PATH_PROC "meminfo"
 
-#define PASS_ARR(X) X, sizeof(X)
-#define REQUEST_ARR(X) X[], const unsigned int key_size
-
+#define PASS_WITH_SIZEOF(X) X, sizeof(X)
+#define PASS_WITH_SIZE_VAR(X) X, X##_size
+#define REQUIRE_WITH_SIZE(TYPE, X) TYPE X, const size_t X## _size
+#define FUNCSOUT(X) printf(#X": %s\n", X);
 
 
 // Returns STR's size 
@@ -60,27 +65,37 @@ char* run_command(char* command){
 	return output;
 }
 
-// Read the first subsequent lines at PATH starting with SEARCH_KEY
-char* readSearchFirstSubsequentLines(const char* path, REQUEST_ARR(const char search_key)){
+// Read PATH
+// Search for SEARCH_KEY at COLUMN (#)
+// Where columns are seperated with DELIM
+// Return the line where it is found 
+char* readSearchGetLine(const char* path, REQUIRE_WITH_SIZE(const char*, search_key), const uint16_t column, REQUIRE_WITH_SIZE(const char*, delim)){
 	const uint16_t buffer_size = KILOBYTE;
+	char* token;
 
 	FILE *fp = fopen(path, "r");
 	if (fp == NULL){
 		return strcat("Could not read the file: ", path);
 	}
+
 	char *output = NULL, *line = NULL;
 	size_t output_size = 0;
 	output = (char *)malloc(output_size);
 	line = (char *)malloc(buffer_size);
 	*output = '\0';
 
+	uint16_t i;
 	while( fgets(line, buffer_size, fp) != NULL ) {
-
+			
 		output_size += strptrlen(line) * sizeof(char);
 		output = realloc(output, output_size);
 		strcat(output, line);
+
+		token = strtok(line, delim);
+		for (i = 1; i < column; i++)
+			token = strtok(NULL, delim);
 		
-		if ( !strncmp(line, search_key, key_size-1) )
+		if ( !strncmp(token, search_key, search_key_size-1) )
 		{
 			return output;
 		} else {
@@ -102,7 +117,7 @@ void getCpuTimings(uint32_t *cpu_total, uint32_t *cpu_idle){
 	uint8_t i = 0;
 	char* token;
 
-	token = strtok(readSearchFirstSubsequentLines(PATH_CPU_STATS, PASS_ARR("cpu ")), delim);
+	token = strtok(readSearchGetLine(PATH_CPU_STATS, PASS_WITH_SIZEOF("cpu"), 1, PASS_WITH_SIZEOF(" ")), delim);
 	token = strtok(NULL, delim); // skip cpu_id
 
 	while ( token != NULL){
@@ -140,12 +155,12 @@ float getCpuUsage(const unsigned int ms_interval){
 }
 
 // Find the first VARIABLE in PATH and return its numeric value
-uint64_t getFirstVarNumValue( const char* path, REQUEST_ARR(const char variable) ){
+uint64_t getFirstVarNumValue( const char* path, REQUIRE_WITH_SIZE(const char*, variable), const uint16_t variable_column_no ){
 	uint64_t output = 0;
 	const char delim[2] = " ";
 	char* token;
 
-	token = strtok(readSearchFirstSubsequentLines( path, variable, key_size ), delim);
+	token = strtok(readSearchGetLine( path, PASS_WITH_SIZE_VAR(variable), variable_column_no, PASS_WITH_SIZEOF(delim) ), delim);
 	token = strtok(NULL, delim); // skip VARIABLE
 
 	if (token) {
@@ -160,13 +175,23 @@ uint64_t getFirstVarNumValue( const char* path, REQUEST_ARR(const char variable)
 	return output;
 }
 
+char* getBootDisk(){
+	char* output = NULL;
+
+	output = readSearchGetLine(PATH_MOUNT_STATS, PASS_WITH_SIZEOF("/boot/efi"), 5, PASS_WITH_SIZEOF(" "));
+
+	return output;
+}
+
 int main (){
-	uint_fast16_t interval = 1000; // CHANGE IT TO 1000
 	printf("\n");
 
-	getCpuUsage(interval); // <-- Run this first to synchronize after sleep
-	getFirstVarNumValue(PATH_MEM_INFO, PASS_ARR("Active"));
-	getFirstVarNumValue(PATH_MEM_INFO, PASS_ARR("MemTotal"));
+	getCpuUsage(INTERVAL); // <-- Run this first to synchronize after sleep
+	getFirstVarNumValue(PATH_MEM_INFO, PASS_WITH_SIZEOF("Active"), 0);
+	getFirstVarNumValue(PATH_MEM_INFO, PASS_WITH_SIZEOF("MemTotal"), 0);
+	FUNCSOUT(getBootDisk());
 
 	return (EXIT_SUCCESS);
 }
+
+// $ cat /proc/self/mountstats | grep /boot/efi | awk '{print $2}' | sed -e "s/\/dev\///g" -e "s/p.//g"
