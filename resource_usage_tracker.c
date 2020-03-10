@@ -3,10 +3,11 @@
 #include <string.h>
 #include <time.h>
 #include <stdint.h>
+#include <assert.h>
 
 #define DEBUG_RUT
 
-#define INTERVAL 1 // 1000 is consistent minimum for cpu
+#define INTERVAL 0 // 1000 is consistent minimum for cpu on physical machines, use higher for virtuals
 
 #define RED_BOLD(X) 	"\033[1;31m"X"\033[0m"
 #define CYAN_BOLD(X) 	"\033[1;34m"X"\033[0m"
@@ -14,6 +15,7 @@
 #define KILOBYTE 1024
 #define MEGABYTE (KILOBYTE * KILOBYTE)
 #define GIGABYTE (KILOBYTE * MEGABYTE)
+#define SECTOR (KILOBYTE / 2)
 
 #define PATH_PROC 			"/proc/"
 #define PATH_CPU_STATS		PATH_PROC "stat"
@@ -24,8 +26,7 @@
 #define PASS_WITH_SIZEOF(X) 		X, sizeof(X)
 #define PASS_WITH_SIZE_VAR(X) 		X, X##_size
 #define REQUIRE_WITH_SIZE(TYPE, X) 	TYPE X, const size_t X## _size
-#define SOUT(X) 					printf(CYAN_BOLD(#X)": %s\n", X);
-
+#define SOUT(T, X)					fprintf(stderr, CYAN_BOLD(#X)": %"T"\n", X);
 
 
 // Returns STR's lenght 
@@ -37,8 +38,56 @@ size_t strptrlen(char *str){
 	return str_lenght * sizeof(char);
 }
 
-void sleep_ms(uint16_t milliseconds) 
-{
+// Splits STR by the DELIMITER to string array and returns it with element COUNT
+char** str_split(char* str, const char delimiter, size_t *count_ptr){
+    char** result    = 0;
+    char* tmp        = str;
+    char* last_comma = 0;
+    char delim[2];
+    delim[0] = delimiter;
+    delim[1] = 0;
+
+	*count_ptr = 0;
+
+    // Count how many elements will be extracted.
+    while (*tmp)
+    {
+        if (delimiter == *tmp && *(tmp+1) != '\0')
+        {
+            (*count_ptr)++;
+            last_comma = tmp;
+        }
+        tmp++;
+    }
+
+    // Add space for trailing token.
+    *count_ptr += last_comma < (str + strlen(str) - 1);
+
+    // Add space for terminating null string so caller
+    // knows where the list of returned strings ends.
+    (*count_ptr)++;
+
+    result = malloc(sizeof(char*) * (*count_ptr));
+
+    if (result)
+    {
+        size_t idx  = 0;
+        char* token = strtok(str, delim);
+
+        while (token)
+        {
+            assert(idx < *count_ptr);
+            *(result + idx++) = strdup(token);
+            token = strtok(0, delim);
+        }
+        assert(idx == *count_ptr - 1);
+        *(result + idx) = 0;
+    }
+
+    return result;
+}
+
+void sleep_ms(uint16_t milliseconds) {
     struct timespec ts;
     ts.tv_sec = milliseconds / 1000;
     ts.tv_nsec = (milliseconds % 1000) * 1000000;
@@ -56,7 +105,7 @@ char* run_command(char* command){
 	fp = popen(command, "r");
 	if (fp == NULL) {
 		printf("Failed to run command: %s\n", command);
-		exit(1);
+		exit(EXIT_FAILURE);
 	}
 
 	while (fgets(path, sizeof(path), fp) != NULL) {
@@ -67,6 +116,23 @@ char* run_command(char* command){
 
 	pclose(fp);
 	return output;
+}
+
+uint16_t trimTill(char *strptr, const char ch){
+	const char *ptr = NULL;
+	uint16_t index = 0;
+	do {
+		ptr = strchr(strptr+index, '/');
+		if(ptr) {
+			index = ptr - strptr;
+			*(strptr + index) = 2; // STX
+		}
+	} while(ptr != NULL);
+
+	uint16_t output_len = strptrlen(strptr);
+	memmove(strptr, strptr+index+1, output_len);
+
+	return output_len - index - 1;
 }
 
 char* getColumn(char* str, const uint16_t column_no, REQUIRE_WITH_SIZE(const char*, delim)){
@@ -84,7 +150,7 @@ char* getColumn(char* str, const uint16_t column_no, REQUIRE_WITH_SIZE(const cha
 // Search for SEARCH_KEY at COLUMN (#)
 // Where columns are seperated with DELIM
 // Return the line where it is found 
-char* readSearchGetFirstLine(const char* path, REQUIRE_WITH_SIZE(const char*, search_key), const uint16_t column, REQUIRE_WITH_SIZE(const char*, delim)){
+char* readSearchGetFirstLine(const char* path, REQUIRE_WITH_SIZE(const char*, search_key), const uint16_t search_column, REQUIRE_WITH_SIZE(const char*, delim)){
 	const uint16_t buffer_size = KILOBYTE;
 
 	FILE *fp = fopen(path, "r");
@@ -111,7 +177,7 @@ char* readSearchGetFirstLine(const char* path, REQUIRE_WITH_SIZE(const char*, se
 		strcat(output, line);
 
 		token = strtok(line, delim);
-		for (i = 1; i < column; i++)
+		for (i = 1; i < search_column; i++)
 			token = strtok(NULL, delim);
 		
 		if ( !strcmp(token, search_key) )
@@ -129,6 +195,7 @@ char* readSearchGetFirstLine(const char* path, REQUIRE_WITH_SIZE(const char*, se
 	return output;
 }
 
+// Get CPU's snapshot
 void getCpuTimings(uint32_t *cpu_total, uint32_t *cpu_idle){
 	*cpu_total = 0;
 	*cpu_idle = 0;
@@ -169,7 +236,7 @@ float getCpuUsage(const unsigned int ms_interval){
 
 	usage = (float) (1.0 - (long double) (idle-prev_idle) / (long double) (total-prev_total) ) * 100.0;
 #ifdef DEBUG_RUT
-	printf(CYAN_BOLD("getCpuUsage()")" | usage = %2.2f%%\n", usage);
+	fprintf(stderr, CYAN_BOLD("getCpuUsage()")" | usage = %2.2f%%\n", usage);
 #endif
 	return usage;
 }
@@ -186,33 +253,16 @@ uint64_t getFirstVarNumValue( const char* path, REQUIRE_WITH_SIZE(const char*, v
 	if (token) {
 		output = atoll(token) * KILOBYTE; // Convert to BYTE
 	} else {
-		printf(RED_BOLD("[ERROR]") " Could NOT parse the value of: "RED_BOLD("%s")"\n", variable);
+		fprintf(stderr, RED_BOLD("[ERROR]") " Could NOT parse the value of: "RED_BOLD("%s")"\n", variable);
 		return 0;
 	}
 #ifdef DEBUG_RUT
-	printf(CYAN_BOLD("getFirstVarNumValue()")" | %s = %llu\n", variable, output);
+	fprintf(stderr, CYAN_BOLD("getFirstVarNumValue()")" | %s = %llu\n", variable, output);
 #endif
 	return output;
 }
 
-uint16_t trimTill(char *strptr, const char ch){
-	const char *ptr = NULL;
-	uint16_t index = 0;
-	do {
-		ptr = strchr(strptr+index, '/');
-		if(ptr) {
-			index = ptr - strptr;
-			*(strptr + index) = 2; // STX
-		}
-	} while(ptr != NULL);
-
-	uint16_t output_len = strptrlen(strptr);
-	memmove(strptr, strptr+index+1, output_len);
-
-	return output_len - index - 1;
-}
-
-char* getBootDisk(char* os_partition_name, char* maj_no){
+char* getSystemDisk(char* os_partition_name, char* maj_no){
 	const char disk_min_no = '0';
 	os_partition_name = NULL;
 	maj_no = NULL;
@@ -237,25 +287,99 @@ char* getBootDisk(char* os_partition_name, char* maj_no){
 		readSearchGetFirstLine(PATH_DISK_STATS, PASS_WITH_SIZEOF(maj_no), 1, PASS_WITH_SIZEOF(" ")),
 		3,
 		PASS_WITH_SIZEOF(" ")
-		);
+	);
 
 #ifdef DEBUG_RUT
-	printf(CYAN_BOLD("getBootDisk()")" | output = %s | os_partition_name = %s | maj_no = %s\n", output, os_partition_name, maj_no);
+	fprintf(stderr, CYAN_BOLD("getSystemDisk()")" | output = %s | os_partition_name = %s | maj_no = %s\n", output, os_partition_name, maj_no);
 #endif
 
 	return output;
 }
 
-int main (){
-	printf("\n");
+// $ awk '$3 == "<DISK_NAME>" {print $6"\t"$10}' /proc/diskstats
+void getDiskReadWrite(REQUIRE_WITH_SIZE(char *, disk_name), uint64_t *bread_sec_out, uint64_t *bwrite_sec_out){
+	//*bread_sec_out = readSearchGetFirstLine(PATH_DISK_STATS, PASS_WITH_SIZEOF("0"), 6, PASS_WITH_SIZEOF(" "));
+	char *input_cmd = (char *)malloc(
+		disk_name_size * sizeof(char) + sizeof("awk '$3 == \"\" {print $6\"\\t\"$10}' /proc/diskstats")
+	);
+		strcpy(input_cmd, "awk '$3 == \"");
+		strcat(input_cmd, disk_name);
+		strcat(input_cmd, "\" {print $6\"\\t\"$10}' /proc/diskstats");
+	run_command(input_cmd);// parse by delimiter \t as "Read\tWrite", return as uint64_t array 0->read 1->write
+	free(input_cmd);
+}
 
-	getBootDisk(NULL, NULL);
+// Get all disks from PATH_DISK_STATS
+// Get disks names and maj if minor no is == 0
+// $ cat "PATH_DISK_STATS" | awk '$2 == 0 {print $3}'
+void getAllDisks(char ***str_out, size_t *size_ptr_out){
+
+	*str_out = str_split( run_command("awk '$2 == 0 {print $3}' "PATH_DISK_STATS), '\n', size_ptr_out);
+
+	// Delete if NULL
+	if (**str_out == NULL){
+		**str_out = (**str_out + 1);
+		(*size_ptr_out)--;
+	}
+
+	uint16_t i;
+	for(i = 1; i < *size_ptr_out; i++){
+
+		if( *(*str_out + i) == NULL ) {
+
+			if (i + 1 < *size_ptr_out){		
+				*(**str_out + i - 1) = *(**str_out + i + 1);
+			}
+
+			(*size_ptr_out)--;
+
+		}
+	
+	}//for
+	// LLUN fi eteleD
+
+#ifdef DEBUG_RUT
+	fprintf(stderr, CYAN_BOLD(" --- getAllDisks() ---\n"));
+	SOUT("d", *size_ptr_out);
+	fprintf(stderr, CYAN_BOLD("Disk Names:\n"));
+	for(uint16_t i = 0 ; i < *size_ptr_out; i++){
+		fprintf(stderr, "%s\n", *(*str_out + i));
+	}
+	fprintf(stderr, CYAN_BOLD(" ---\n"));
+#endif
+}
+
+int main (){
+#ifdef DEBUG_RUT
+	clock_t _begin = clock();
+#endif
+	fprintf(stderr, "\n");
+
+	char 	**disk_names = NULL;
+	size_t 	disk_count = 0;
+	
+	getAllDisks(&disk_names, &disk_count);
+
+	if(disk_count > 1)
+	{
+		getSystemDisk(NULL, NULL);
+	}
+	else if (disk_count <= 0)
+	{
+		fprintf(stderr, RED_BOLD("[ERROR]")" Could not get the disks!\n");
+		exit(EXIT_FAILURE);
+	}
 
 	getCpuUsage(INTERVAL); // <-- Run this first to synchronize after sleep
 	getFirstVarNumValue(PATH_MEM_INFO, PASS_WITH_SIZEOF("Active:"), 0);
 	getFirstVarNumValue(PATH_MEM_INFO, PASS_WITH_SIZEOF("MemTotal:"), 0);
 
+#ifdef DEBUG_RUT
+	fprintf(stderr, "\nExecution time: %lf\n", (double)(clock() - _begin) / CLOCKS_PER_SEC);
+#endif
 	return (EXIT_SUCCESS);
 }
 
 // $ cat /proc/self/mountstats | grep /boot/efi | awk '{print $2}' | sed -e "s/\/dev\///g" -e "s/p.//g"
+// $ cat /sys/block/<disk>/device/model 
+// KBG30ZMV256G TOSHIBA
