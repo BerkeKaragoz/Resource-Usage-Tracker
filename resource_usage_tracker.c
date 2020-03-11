@@ -28,8 +28,18 @@
 #define REQUIRE_WITH_SIZE(TYPE, X) 	TYPE X, const size_t X## _size
 #define SOUT(T, X)					fprintf(stderr, CYAN_BOLD(#X)": %"T"\n", X);
 
+struct disk_info{
+	size_t read_per_sec;
+	size_t write_per_sec;
+	char *name;
+};
 
-// Returns STR's lenght 
+typedef struct disks{
+	struct disk_info *info;
+	uint16_t count;
+}disks_t;
+
+// Returns *STR's lenght 
 size_t strptrlen(char *str){
 	char *tmp = str;
 	size_t str_lenght = 0;
@@ -87,7 +97,7 @@ char** str_split(char* str, const char delimiter, size_t *count_ptr){
     return result;
 }
 
-void sleep_ms(uint16_t milliseconds) {
+void sleep_ms(const uint32_t milliseconds) {
     struct timespec ts;
     ts.tv_sec = milliseconds / 1000;
     ts.tv_nsec = (milliseconds % 1000) * 1000000;
@@ -118,7 +128,7 @@ char* run_command(char* command){
 	return output;
 }
 
-uint16_t trimTill(char *strptr, const char ch){
+uint16_t leftTrimTill(char *strptr, const char ch){
 	const char *ptr = NULL;
 	uint16_t index = 0;
 	do {
@@ -192,6 +202,7 @@ char* readSearchGetFirstLine(const char* path, REQUIRE_WITH_SIZE(const char*, se
 
 	}
 	fclose(fp);
+	free(line);
 	return output;
 }
 
@@ -225,7 +236,7 @@ void getCpuTimings(uint32_t *cpu_total, uint32_t *cpu_idle){
 
 // 1000 ms is stable
 // cat <(grep cpu /proc/stat) <(sleep 0.1 && grep cpu /proc/stat) | awk -v RS="" '{printf "%.1f", ($13-$2+$15-$4)*100/($13-$2+$15-$4+$16-$5)}
-float getCpuUsage(const unsigned int ms_interval){
+float getCpuUsage(const uint32_t ms_interval){
 	uint32_t 	total = 0, idle = 0,
 				prev_total = 0, prev_idle = 0;
 	float 		usage = 0;
@@ -262,6 +273,7 @@ uint64_t getFirstVarNumValue( const char* path, REQUIRE_WITH_SIZE(const char*, v
 	return output;
 }
 
+// Get the current OS disk
 char* getSystemDisk(char* os_partition_name, char* maj_no){
 	const char disk_min_no = '0';
 	os_partition_name = NULL;
@@ -275,7 +287,7 @@ char* getSystemDisk(char* os_partition_name, char* maj_no){
 		PASS_WITH_SIZEOF(" ")
 	);
 
-	const uint16_t os_partition_name_size = trimTill(os_partition_name, '/'); // Trim path
+	const uint16_t os_partition_name_size = leftTrimTill(os_partition_name, '/'); // Trim path
 
 	maj_no = getColumn(
 		readSearchGetFirstLine(PATH_DISK_STATS, PASS_WITH_SIZE_VAR(os_partition_name), 3, PASS_WITH_SIZEOF(" ")),
@@ -297,53 +309,82 @@ char* getSystemDisk(char* os_partition_name, char* maj_no){
 }
 
 // $ awk '$3 == "<DISK_NAME>" {print $6"\t"$10}' /proc/diskstats
-void getDiskReadWrite(REQUIRE_WITH_SIZE(char *, disk_name), uint64_t *bread_sec_out, uint64_t *bwrite_sec_out){
-	//*bread_sec_out = readSearchGetFirstLine(PATH_DISK_STATS, PASS_WITH_SIZEOF("0"), 6, PASS_WITH_SIZEOF(" "));
+void getDiskReadWrite(const uint32_t ms_interval, REQUIRE_WITH_SIZE(char *, disk_name), size_t *bread_sec_out, size_t *bwrite_sec_out){
+	
 	char *input_cmd = (char *)malloc(
 		disk_name_size * sizeof(char) + sizeof("awk '$3 == \"\" {print $6\"\\t\"$10}' /proc/diskstats")
 	);
-		strcpy(input_cmd, "awk '$3 == \"");
-		strcat(input_cmd, disk_name);
-		strcat(input_cmd, "\" {print $6\"\\t\"$10}' /proc/diskstats");
-	run_command(input_cmd);// parse by delimiter \t as "Read\tWrite", return as uint64_t array 0->read 1->write
+
+	strcpy(input_cmd, "awk '$3 == \"");
+	strcat(input_cmd, disk_name);
+	strcat(input_cmd, "\" {print $6\"\\t\"$10}' /proc/diskstats");
+
+	size_t temp_size = 0;
+	char ***read_write = (char ***)malloc(sizeof(char**) * 2);
+
+	*read_write = str_split(run_command(input_cmd), '\t', &temp_size);
+	
+	sleep_ms(ms_interval);
+
+	*(read_write + 1) = str_split(run_command(input_cmd), '\t', &temp_size);
 	free(input_cmd);
+
+	*bread_sec_out = atoll(read_write[1][0]) - atoll(read_write[0][0]); // BR - AR
+	*bwrite_sec_out = atoll(read_write[1][1]) - atoll(read_write[0][1]); // BW - AW
+
+#ifdef DEBUG_RUT
+	fprintf(stderr, CYAN_BOLD(" --- getDiskReadWrite(")"%s"CYAN_BOLD(") ---\n"), disk_name);
+	SOUT("s", read_write[0][0]);// Before 	Read
+	SOUT("s", read_write[0][1]);// Before 	Write
+	SOUT("s", read_write[1][0]);// After 	Read
+	SOUT("s", read_write[1][1]);// After 	Write
+
+	SOUT("d", *bread_sec_out);
+	SOUT("d", *bwrite_sec_out);
+	fprintf(stderr, CYAN_BOLD(" ---\n"));
+#endif
+
+	free(read_write);
 }
 
 // Get all disks from PATH_DISK_STATS
 // Get disks names and maj if minor no is == 0
 // $ cat "PATH_DISK_STATS" | awk '$2 == 0 {print $3}'
-void getAllDisks(char ***str_out, size_t *size_ptr_out){
-
-	*str_out = str_split( run_command("awk '$2 == 0 {print $3}' "PATH_DISK_STATS), '\n', size_ptr_out);
+void getAllDisks(disks_t *disks){
+	char **temp = str_split( run_command("awk '$2 == 0 {print $3}' "PATH_DISK_STATS), '\n', (size_t *) &disks->count);
 
 	// Delete if NULL
-	if (**str_out == NULL){
-		**str_out = (**str_out + 1);
-		(*size_ptr_out)--;
+	if (*temp == NULL){
+		*temp = *(temp + 1);
+		(disks->count)--;
 	}
 
 	uint16_t i;
-	for(i = 1; i < *size_ptr_out; i++){
+	for(i = 1; i < disks->count; i++){
 
-		if( *(*str_out + i) == NULL ) {
-
-			if (i + 1 < *size_ptr_out){		
-				*(**str_out + i - 1) = *(**str_out + i + 1);
+		if( *(temp + i) == NULL ) {
+			if (i + 1 < disks->count){		
+				*(temp + i - 1) = *(temp + i + 1);
 			}
-
-			(*size_ptr_out)--;
-
+			(disks->count)--;
 		}
-	
+		
 	}//for
 	// LLUN fi eteleD
 
+	for (i = 0; i < disks->count; i++){
+		(*(disks + i)).info = (struct disk_info *)malloc(sizeof(struct disk_info));
+		(*(*(disks + i)).info).name = *(temp + i);
+	}
+	
+	free(temp);
+
 #ifdef DEBUG_RUT
 	fprintf(stderr, CYAN_BOLD(" --- getAllDisks() ---\n"));
-	SOUT("d", *size_ptr_out);
+	SOUT("d", disks->count);
 	fprintf(stderr, CYAN_BOLD("Disk Names:\n"));
-	for(uint16_t i = 0 ; i < *size_ptr_out; i++){
-		fprintf(stderr, "%s\n", *(*str_out + i));
+	for(uint16_t i = 0 ; i < disks->count; i++){
+		fprintf(stderr, CYAN_BOLD("-")"%s\n", (*(*(disks+i)).info).name);
 	}
 	fprintf(stderr, CYAN_BOLD(" ---\n"));
 #endif
@@ -355,19 +396,21 @@ int main (){
 #endif
 	fprintf(stderr, "\n");
 
-	char 	**disk_names = NULL;
-	size_t 	disk_count = 0;
-	
-	getAllDisks(&disk_names, &disk_count);
+	disks_t disks;
 
-	if(disk_count > 1)
+	getAllDisks(&disks);
+	if(disks.count > 1)
 	{
 		getSystemDisk(NULL, NULL);
 	}
-	else if (disk_count <= 0)
+	else if (disks.count <= 0)
 	{
 		fprintf(stderr, RED_BOLD("[ERROR]")" Could not get the disks!\n");
 		exit(EXIT_FAILURE);
+	}
+
+	for (uint16_t i = 0; i < disks.count; i++){
+		getDiskReadWrite(INTERVAL, PASS_WITH_SIZEOF((*(disks.info + i)).name), &((disks.info + i)->read_per_sec), &((disks.info + i)->write_per_sec));
 	}
 
 	getCpuUsage(INTERVAL); // <-- Run this first to synchronize after sleep
@@ -381,5 +424,4 @@ int main (){
 }
 
 // $ cat /proc/self/mountstats | grep /boot/efi | awk '{print $2}' | sed -e "s/\/dev\///g" -e "s/p.//g"
-// $ cat /sys/block/<disk>/device/model 
-// KBG30ZMV256G TOSHIBA
+// $ cat /sys/block/<disk>/device/model ---> KBG30ZMV256G TOSHIBA
