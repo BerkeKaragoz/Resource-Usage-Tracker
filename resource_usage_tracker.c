@@ -7,7 +7,7 @@
 
 #define DEBUG_RUT
 
-#define INTERVAL 0 // 1000 is consistent minimum for cpu on physical machines, use higher for virtuals
+#define INTERVAL 1000 // 1000 is consistent minimum for cpu on physical machines, use higher for virtuals
 
 #define RED_BOLD(X) 	"\033[1;31m"X"\033[0m"
 #define CYAN_BOLD(X) 	"\033[1;34m"X"\033[0m"
@@ -310,7 +310,11 @@ char* getSystemDisk(char* os_partition_name, char* maj_no){
 
 // $ awk '$3 == "<DISK_NAME>" {print $6"\t"$10}' /proc/diskstats
 void getDiskReadWrite(const uint32_t ms_interval, REQUIRE_WITH_SIZE(char *, disk_name), size_t *bread_sec_out, size_t *bwrite_sec_out){
-	
+#ifdef DEBUG_RUT
+	fprintf(stderr, CYAN_BOLD(" --- getDiskReadWrite(")"%s"CYAN_BOLD(") ---\n"), disk_name);
+	SOUT("s", disk_name);
+	SOUT("d", disk_name_size);
+#endif
 	char *input_cmd = (char *)malloc(
 		disk_name_size * sizeof(char) + sizeof("awk '$3 == \"\" {print $6\"\\t\"$10}' /proc/diskstats")
 	);
@@ -321,9 +325,9 @@ void getDiskReadWrite(const uint32_t ms_interval, REQUIRE_WITH_SIZE(char *, disk
 
 	size_t temp_size = 0;
 	char ***read_write = (char ***)malloc(sizeof(char**) * 2);
-
-	*read_write = str_split(run_command(input_cmd), '\t', &temp_size);
 	
+	*read_write = str_split(run_command(input_cmd), '\t', &temp_size);
+
 	sleep_ms(ms_interval);
 
 	*(read_write + 1) = str_split(run_command(input_cmd), '\t', &temp_size);
@@ -333,7 +337,6 @@ void getDiskReadWrite(const uint32_t ms_interval, REQUIRE_WITH_SIZE(char *, disk
 	*bwrite_sec_out = atoll(read_write[1][1]) - atoll(read_write[0][1]); // BW - AW
 
 #ifdef DEBUG_RUT
-	fprintf(stderr, CYAN_BOLD(" --- getDiskReadWrite(")"%s"CYAN_BOLD(") ---\n"), disk_name);
 	SOUT("s", read_write[0][0]);// Before 	Read
 	SOUT("s", read_write[0][1]);// Before 	Write
 	SOUT("s", read_write[1][0]);// After 	Read
@@ -343,7 +346,6 @@ void getDiskReadWrite(const uint32_t ms_interval, REQUIRE_WITH_SIZE(char *, disk
 	SOUT("d", *bwrite_sec_out);
 	fprintf(stderr, CYAN_BOLD(" ---\n"));
 #endif
-
 	free(read_write);
 }
 
@@ -374,7 +376,8 @@ void getAllDisks(disks_t *disks){
 
 	for (i = 0; i < disks->count; i++){
 		(*(disks + i)).info = (struct disk_info *)malloc(sizeof(struct disk_info));
-		(*(*(disks + i)).info).name = *(temp + i);
+		SOUT("s", *(temp + i));
+		(*((*disks).info + i)).name = *(temp + i);
 	}
 	
 	free(temp);
@@ -384,7 +387,7 @@ void getAllDisks(disks_t *disks){
 	SOUT("d", disks->count);
 	fprintf(stderr, CYAN_BOLD("Disk Names:\n"));
 	for(uint16_t i = 0 ; i < disks->count; i++){
-		fprintf(stderr, CYAN_BOLD("-")"%s\n", (*(*(disks+i)).info).name);
+		fprintf(stderr, CYAN_BOLD("-")"%s\n", (*((*disks).info + i)).name);
 	}
 	fprintf(stderr, CYAN_BOLD(" ---\n"));
 #endif
@@ -408,11 +411,11 @@ int main (){
 		fprintf(stderr, RED_BOLD("[ERROR]")" Could not get the disks!\n");
 		exit(EXIT_FAILURE);
 	}
-
+// Burda bi sorun
 	for (uint16_t i = 0; i < disks.count; i++){
 		getDiskReadWrite(INTERVAL, PASS_WITH_SIZEOF((*(disks.info + i)).name), &((disks.info + i)->read_per_sec), &((disks.info + i)->write_per_sec));
 	}
-
+// ---
 	getCpuUsage(INTERVAL); // <-- Run this first to synchronize after sleep
 	getFirstVarNumValue(PATH_MEM_INFO, PASS_WITH_SIZEOF("Active:"), 0);
 	getFirstVarNumValue(PATH_MEM_INFO, PASS_WITH_SIZEOF("MemTotal:"), 0);
