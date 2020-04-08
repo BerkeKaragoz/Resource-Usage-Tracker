@@ -7,7 +7,7 @@
 
 #define DEBUG_RUT
 
-#define INTERVAL 1000 // 1000 is consistent minimum for cpu on physical machines, use higher for virtuals
+#define INTERVAL 0 // 1000 is consistent minimum for cpu on physical machines, use higher for virtuals
 
 #define RED_BOLD(X) 	"\033[1;31m"X"\033[0m"
 #define CYAN_BOLD(X) 	"\033[1;34m"X"\033[0m"
@@ -29,15 +29,27 @@
 #define SOUT(T, X)					fprintf(stderr, CYAN_BOLD(#X)": %"T"\n", X);
 
 struct disk_info{
+	char *name;
 	size_t read_per_sec;
 	size_t write_per_sec;
-	char *name;
 };
 
 typedef struct disks{
 	struct disk_info *info;
 	uint16_t count;
 }disks_t;
+
+struct filesystem_info{
+	char *partition;
+	size_t block_size;
+	size_t used;
+	size_t available;
+};
+
+typedef struct filesystems{
+	struct filesystem_info *info;
+	uint16_t count;
+}filesystems_t;
 
 // Returns *STR's lenght 
 size_t strptrlen(char *str){
@@ -376,7 +388,6 @@ void getAllDisks(disks_t *disks){
 
 	for (i = 0; i < disks->count; i++){
 		(*(disks + i)).info = (struct disk_info *)malloc(sizeof(struct disk_info));
-		SOUT("s", *(temp + i));
 		(*((*disks).info + i)).name = *(temp + i);
 	}
 	
@@ -393,6 +404,55 @@ void getAllDisks(disks_t *disks){
 #endif
 }
 
+// df --type btrfs --type ext4 --type ext3 --type ext2 --type vfat --type iso9660 --block-size=1 | tail -n +2 | awk {'print $1" "$2" "$3" "$4'}
+void getPhysicalFilesystems(filesystems_t *filesystems){
+	char **filesystems_temp = str_split( run_command("df --type btrfs --type ext4 --type ext3 --type ext2 --type vfat --type iso9660 --block-size=1 | tail -n +2 | awk {'print $1\" \"$2\" \"$3\" \"$4'}"), '\n', (size_t *) &filesystems->count);
+
+	// Delete if NULL
+	if (*filesystems_temp == NULL){
+		*filesystems_temp = *(filesystems_temp + 1);
+		(filesystems->count)--;
+	}
+
+	uint16_t i;
+	for(i = 1; i < filesystems->count; i++){
+
+		if( *(filesystems_temp + i) == NULL ) {
+			if (i + 1 < filesystems->count){		
+				*(filesystems_temp + i - 1) = *(filesystems_temp + i + 1);
+			}
+			(filesystems->count)--;
+		}
+		
+	}//for
+	// LLUN fi eteleD
+	size_t info_field_count = 0;
+	char **fsi_temp;
+	for (i = 0; i < filesystems->count; i++){
+		(*(filesystems + i)).info = (struct filesystem_info *)malloc(sizeof(struct filesystem_info));
+		fsi_temp = str_split(*(filesystems_temp + i), ' ', &info_field_count );
+		(*((*filesystems).info + i)).partition 	= *(fsi_temp + 0);
+		(*((*filesystems).info + i)).block_size = (size_t) *(fsi_temp + 1); // as 1-byte sizes
+		(*((*filesystems).info + i)).used 		= (size_t) *(fsi_temp + 2);
+		(*((*filesystems).info + i)).available 	= (size_t) *(fsi_temp + 3);
+	}
+	free(fsi_temp);
+	free(filesystems_temp);
+
+	#ifdef DEBUG_RUT
+		fprintf(stderr, CYAN_BOLD(" --- getPhysicalFilesystems() ---\n"));
+		SOUT("d", filesystems->count);
+		fprintf(stderr, CYAN_BOLD("Filesystems:\n"));
+		for(uint16_t i = 0 ; i < filesystems->count; i++){
+			fprintf(stderr, CYAN_BOLD("- Partition: ")"\t%s\n", (*((*filesystems).info + i)).partition);
+			fprintf(stderr, CYAN_BOLD("- Byte blocks: ")"\t%s\n", (*((*filesystems).info + i)).block_size);
+			fprintf(stderr, CYAN_BOLD("- Used: ")"\t%s\n", (*((*filesystems).info + i)).used);
+			fprintf(stderr, CYAN_BOLD("- Available: ")"\t%s\n", (*((*filesystems).info + i)).available);
+		}
+		fprintf(stderr, CYAN_BOLD(" ---\n"));
+	#endif
+}
+
 int main (){
 #ifdef DEBUG_RUT
 	clock_t _begin = clock();
@@ -400,8 +460,10 @@ int main (){
 	fprintf(stderr, "\n");
 
 	disks_t disks;
+	filesystems_t filesystems;
 
 	getAllDisks(&disks);
+	getPhysicalFilesystems(&filesystems);
 	if(disks.count > 1)
 	{
 		getSystemDisk(NULL, NULL);
@@ -411,11 +473,11 @@ int main (){
 		fprintf(stderr, RED_BOLD("[ERROR]")" Could not get the disks!\n");
 		exit(EXIT_FAILURE);
 	}
-// Burda bi sorun
+
 	for (uint16_t i = 0; i < disks.count; i++){
 		getDiskReadWrite(INTERVAL, PASS_WITH_SIZEOF((*(disks.info + i)).name), &((disks.info + i)->read_per_sec), &((disks.info + i)->write_per_sec));
 	}
-// ---
+
 	getCpuUsage(INTERVAL); // <-- Run this first to synchronize after sleep
 	getFirstVarNumValue(PATH_MEM_INFO, PASS_WITH_SIZEOF("Active:"), 0);
 	getFirstVarNumValue(PATH_MEM_INFO, PASS_WITH_SIZEOF("MemTotal:"), 0);
@@ -428,3 +490,5 @@ int main (){
 
 // $ cat /proc/self/mountstats | grep /boot/efi | awk '{print $2}' | sed -e "s/\/dev\///g" -e "s/p.//g"
 // $ cat /sys/block/<disk>/device/model ---> KBG30ZMV256G TOSHIBA
+// get active filesystems
+// df --type btrfs --type ext4 --type ext3 --type ext2 --type vfat --type iso9660 | tail -n +2 | awk {'print $1'}
