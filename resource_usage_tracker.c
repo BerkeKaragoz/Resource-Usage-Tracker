@@ -4,13 +4,12 @@
 #include <time.h>
 #include <stdint.h>
 #include <assert.h>
+#include <pthread.h>
 
 #define DEBUG_RUT
 
-#define INTERVAL 0 // 1000 is consistent minimum for cpu on physical machines, use higher for virtuals
-
-#define RED_BOLD(X) 	"\033[1;31m"X"\033[0m"
-#define CYAN_BOLD(X) 	"\033[1;34m"X"\033[0m"
+#define INTERVAL 1000 // 1000 is consistent minimum for cpu on physical machines, use higher for virtuals
+#define MAX_THREADS 32
 
 #define KILOBYTE 1024
 #define MEGABYTE (KILOBYTE * KILOBYTE)
@@ -23,10 +22,15 @@
 #define PATH_MOUNT_STATS 	PATH_PROC "self/mountstats"
 #define PATH_MEM_INFO 		PATH_PROC "meminfo"
 
+#define RED_BOLD(X) 	"\033[1;31m"X"\033[0m"
+#define CYAN_BOLD(X) 	"\033[1;34m"X"\033[0m"
+
 #define PASS_WITH_SIZEOF(X) 		X, sizeof(X)
 #define PASS_WITH_SIZE_VAR(X) 		X, X##_size
 #define REQUIRE_WITH_SIZE(TYPE, X) 	TYPE X, const size_t X## _size
 #define SOUT(T, X)					fprintf(stderr, CYAN_BOLD(#X)": %"T"\n", X);
+
+static pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 
 struct disk_info{
 	char *name;
@@ -453,14 +457,29 @@ void getPhysicalFilesystems(filesystems_t *filesystems){
 	#endif
 }
 
+void *call_getDiskReadWrite(void* disk_info_ptr){
+	struct disk_info *dip = (struct disk_info *) disk_info_ptr;
+
+	pthread_mutex_lock(&mutex);
+	getDiskReadWrite(INTERVAL, PASS_WITH_SIZEOF(dip->name), &(dip->read_per_sec), &(dip->write_per_sec));
+	pthread_mutex_unlock(&mutex);
+
+	return NULL;
+}
+
 int main (){
 #ifdef DEBUG_RUT
 	clock_t _begin = clock();
 #endif
 	fprintf(stderr, "\n");
+	pthread_t *disk_io_threads;
+	pthread_t cpu_thread; 
 
 	disks_t disks;
 	filesystems_t filesystems;
+
+	getFirstVarNumValue(PATH_MEM_INFO, PASS_WITH_SIZEOF("Active:"), 0);
+	getFirstVarNumValue(PATH_MEM_INFO, PASS_WITH_SIZEOF("MemTotal:"), 0);
 
 	getAllDisks(&disks);
 	getPhysicalFilesystems(&filesystems);
@@ -473,17 +492,29 @@ int main (){
 		fprintf(stderr, RED_BOLD("[ERROR]")" Could not get the disks!\n");
 		exit(EXIT_FAILURE);
 	}
+	
+	if (disks.count > MAX_THREADS){
+		fprintf(stderr, RED_BOLD("[ERROR]")" Disk count exceeded maximum amount of threads!\n");
+		exit(EXIT_FAILURE);
+	}
+
+	disk_io_threads = malloc(disks.count * sizeof(pthread_t)); 
 
 	for (uint16_t i = 0; i < disks.count; i++){
-		getDiskReadWrite(INTERVAL, PASS_WITH_SIZEOF((*(disks.info + i)).name), &((disks.info + i)->read_per_sec), &((disks.info + i)->write_per_sec));
+		pthread_create(disk_io_threads + i, NULL, call_getDiskReadWrite, (disks.info + i));
 	}
 
 	getCpuUsage(INTERVAL); // <-- Run this first to synchronize after sleep
-	getFirstVarNumValue(PATH_MEM_INFO, PASS_WITH_SIZEOF("Active:"), 0);
-	getFirstVarNumValue(PATH_MEM_INFO, PASS_WITH_SIZEOF("MemTotal:"), 0);
 
+	for (uint16_t i = 0; i < disks.count; i++){
+		pthread_join(*(disk_io_threads + i), NULL);
+	}
+
+	pthread_exit(NULL);
+	free(disk_io_threads);
 #ifdef DEBUG_RUT
-	fprintf(stderr, "\nExecution time: %lf\n", (double)(clock() - _begin) / CLOCKS_PER_SEC);
+	clock_t _end = clock();
+	fprintf(stderr, "\nExecution time: %lf\n", (double)(_end - _begin) / CLOCKS_PER_SEC);
 #endif
 	return (EXIT_SUCCESS);
 }
