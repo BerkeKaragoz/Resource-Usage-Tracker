@@ -8,7 +8,7 @@
 
 #define DEBUG_RUT
 
-#define INTERVAL 1000 // 1000 is consistent minimum for cpu on physical machines, use higher for virtuals
+#define DEFAULT_GLOBAL_INTERVAL 1000 // 1000 is consistent minimum for cpu on physical machines, use higher for virtuals
 #define MAX_THREADS 32
 
 #define KILOBYTE 1024
@@ -461,7 +461,24 @@ void *call_getDiskReadWrite(void* disk_info_ptr){
 	struct disk_info *dip = (struct disk_info *) disk_info_ptr;
 
 	pthread_mutex_lock(&mutex);
-	getDiskReadWrite(INTERVAL, PASS_WITH_SIZEOF(dip->name), &(dip->read_per_sec), &(dip->write_per_sec));
+	getDiskReadWrite(DEFAULT_GLOBAL_INTERVAL, PASS_WITH_SIZEOF(dip->name), &(dip->read_per_sec), &(dip->write_per_sec));
+	pthread_mutex_unlock(&mutex);
+
+	return NULL;
+}
+
+void *call_getCpuUsage(void *interval_ptr){
+	
+	uint32_t *interval = DEFAULT_GLOBAL_INTERVAL;
+
+	if ( (int64_t *) interval_ptr >= 0){
+		interval = (uint32_t *) interval_ptr;
+	} else {
+		SOUT("s", RED_BOLD("[ERROR] CPU Interval is lower than 0. It is set to 1000."));
+	}
+
+	pthread_mutex_lock(&mutex);
+	getCpuUsage(interval);
 	pthread_mutex_unlock(&mutex);
 
 	return NULL;
@@ -497,14 +514,14 @@ int main (){
 		fprintf(stderr, RED_BOLD("[ERROR]")" Disk count exceeded maximum amount of threads!\n");
 		exit(EXIT_FAILURE);
 	}
+	uint32_t cpu_interval = DEFAULT_GLOBAL_INTERVAL;
+	pthread_create(&cpu_thread, NULL, call_getCpuUsage, NULL);
 
 	disk_io_threads = malloc(disks.count * sizeof(pthread_t)); 
 
 	for (uint16_t i = 0; i < disks.count; i++){
 		pthread_create(disk_io_threads + i, NULL, call_getDiskReadWrite, (disks.info + i));
 	}
-
-	getCpuUsage(INTERVAL); // <-- Run this first to synchronize after sleep
 
 	for (uint16_t i = 0; i < disks.count; i++){
 		pthread_join(*(disk_io_threads + i), NULL);
