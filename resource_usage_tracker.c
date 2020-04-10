@@ -9,7 +9,7 @@
 #define DEBUG_RUT
 
 #define DEFAULT_GLOBAL_INTERVAL 1000 // 1000 is consistent minimum for cpu on physical machines, use higher for virtuals
-#define MAX_THREADS 32
+#define MAX_THREADS 64
 
 #define KILOBYTE 1024
 #define MEGABYTE (KILOBYTE * KILOBYTE)
@@ -25,12 +25,12 @@
 #define RED_BOLD(X) 	"\033[1;31m"X"\033[0m"
 #define CYAN_BOLD(X) 	"\033[1;34m"X"\033[0m"
 
+#define STR(X) #X
+#define ADD_QUOTES(X) "\""#X"\""
 #define PASS_WITH_SIZEOF(X) 		X, sizeof(X)
 #define PASS_WITH_SIZE_VAR(X) 		X, X##_size
 #define REQUIRE_WITH_SIZE(TYPE, X) 	TYPE X, const size_t X## _size
 #define SOUT(T, X)					fprintf(stderr, CYAN_BOLD(#X)": %"T"\n", X);
-
-static pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 
 struct disk_info{
 	char *name;
@@ -54,6 +54,7 @@ typedef struct filesystems{
 	struct filesystem_info *info;
 	uint16_t count;
 }filesystems_t;
+
 
 // Returns *STR's lenght 
 size_t strptrlen(char *str){
@@ -263,7 +264,10 @@ float getCpuUsage(const uint32_t ms_interval){
 
 	usage = (float) (1.0 - (long double) (idle-prev_idle) / (long double) (total-prev_total) ) * 100.0;
 #ifdef DEBUG_RUT
-	fprintf(stderr, CYAN_BOLD("getCpuUsage()")" | usage = %2.2f%%\n", usage);
+	fprintf(stderr, CYAN_BOLD(" --- getCpuUsage()\n"));
+	fprintf(stderr, CYAN_BOLD("Interval")": %d\n", ms_interval);
+	fprintf(stderr, CYAN_BOLD("Usage")": %2.2f%%\n", usage);
+	fprintf(stderr, CYAN_BOLD(" ---\n"));
 #endif
 	return usage;
 }
@@ -326,11 +330,6 @@ char* getSystemDisk(char* os_partition_name, char* maj_no){
 
 // $ awk '$3 == "<DISK_NAME>" {print $6"\t"$10}' /proc/diskstats
 void getDiskReadWrite(const uint32_t ms_interval, REQUIRE_WITH_SIZE(char *, disk_name), size_t *bread_sec_out, size_t *bwrite_sec_out){
-#ifdef DEBUG_RUT
-	fprintf(stderr, CYAN_BOLD(" --- getDiskReadWrite(")"%s"CYAN_BOLD(") ---\n"), disk_name);
-	SOUT("s", disk_name);
-	SOUT("d", disk_name_size);
-#endif
 	char *input_cmd = (char *)malloc(
 		disk_name_size * sizeof(char) + sizeof("awk '$3 == \"\" {print $6\"\\t\"$10}' /proc/diskstats")
 	);
@@ -353,11 +352,14 @@ void getDiskReadWrite(const uint32_t ms_interval, REQUIRE_WITH_SIZE(char *, disk
 	*bwrite_sec_out = atoll(read_write[1][1]) - atoll(read_write[0][1]); // BW - AW
 
 #ifdef DEBUG_RUT
+	fprintf(stderr, CYAN_BOLD(" --- getDiskReadWrite(")"%s"CYAN_BOLD(") ---\n"), disk_name);
+	SOUT("s", disk_name);
+	SOUT("d", disk_name_size);
+	SOUT("d", ms_interval);
 	SOUT("s", read_write[0][0]);// Before 	Read
 	SOUT("s", read_write[0][1]);// Before 	Write
 	SOUT("s", read_write[1][0]);// After 	Read
 	SOUT("s", read_write[1][1]);// After 	Write
-
 	SOUT("d", *bread_sec_out);
 	SOUT("d", *bwrite_sec_out);
 	fprintf(stderr, CYAN_BOLD(" ---\n"));
@@ -458,28 +460,25 @@ void getPhysicalFilesystems(filesystems_t *filesystems){
 }
 
 void *call_getDiskReadWrite(void* disk_info_ptr){
-	struct disk_info *dip = (struct disk_info *) disk_info_ptr;
 
-	pthread_mutex_lock(&mutex);
+	struct disk_info *dip = (struct disk_info *) disk_info_ptr;
+	
 	getDiskReadWrite(DEFAULT_GLOBAL_INTERVAL, PASS_WITH_SIZEOF(dip->name), &(dip->read_per_sec), &(dip->write_per_sec));
-	pthread_mutex_unlock(&mutex);
 
 	return NULL;
 }
 
 void *call_getCpuUsage(void *interval_ptr){
 	
-	uint32_t *interval = DEFAULT_GLOBAL_INTERVAL;
-
-	if ( (int64_t *) interval_ptr >= 0){
-		interval = (uint32_t *) interval_ptr;
+	uint32_t interval = DEFAULT_GLOBAL_INTERVAL;
+	
+	if ( (int64_t *) interval_ptr >= 0 ){
+		interval = *((uint32_t *) interval_ptr);
 	} else {
-		SOUT("s", RED_BOLD("[ERROR] CPU Interval is lower than 0. It is set to 1000."));
+		fprintf(stderr, RED_BOLD("[ERROR] CPU Interval is lower than 0. It is set to %d.\n"), DEFAULT_GLOBAL_INTERVAL);
 	}
 
-	pthread_mutex_lock(&mutex);
 	getCpuUsage(interval);
-	pthread_mutex_unlock(&mutex);
 
 	return NULL;
 }
@@ -515,17 +514,19 @@ int main (){
 		exit(EXIT_FAILURE);
 	}
 	uint32_t cpu_interval = DEFAULT_GLOBAL_INTERVAL;
-	pthread_create(&cpu_thread, NULL, call_getCpuUsage, NULL);
+	pthread_create(&cpu_thread, NULL, call_getCpuUsage, &cpu_interval);
 
 	disk_io_threads = malloc(disks.count * sizeof(pthread_t)); 
 
 	for (uint16_t i = 0; i < disks.count; i++){
-		pthread_create(disk_io_threads + i, NULL, call_getDiskReadWrite, (disks.info + i));
+		pthread_create(disk_io_threads + i, NULL, call_getDiskReadWrite, disks.info + i);
 	}
 
 	for (uint16_t i = 0; i < disks.count; i++){
 		pthread_join(*(disk_io_threads + i), NULL);
 	}
+
+	pthread_join(cpu_thread, NULL);
 
 	pthread_exit(NULL);
 	free(disk_io_threads);
