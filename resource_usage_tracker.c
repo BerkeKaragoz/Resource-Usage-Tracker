@@ -531,6 +531,45 @@ void getNetworkInterfaces(net_ints_t *netints){
 
 	free(netints_temp);
 
+	// Get Bandwith
+	char *path = NULL;
+	FILE *bandwith_file = NULL;
+
+	for (uint16_t i = 0; i < netints->count; i++){
+		path = realloc(path, sizeof("/sys/class/net//speed") + sizeof((*((*netints).info + i)).name));
+		strcpy(path, "/sys/class/net/");
+		strcat(path, (*((*netints).info + i)).name);
+		strcat(path, "/speed");
+
+		bandwith_file = fopen(path, "r");
+
+		fscanf(bandwith_file, "%lu", &((*netints).info + i)->bandwith_mbps);
+	}
+	free(path);
+	fclose(bandwith_file);
+
+#ifdef DEBUG_RUT
+	fprintf(stderr, CYAN_BOLD(" --- getNetworkUsage() ---\n"));
+	SOUT("d", netints->count);
+	fprintf(stderr, CYAN_BOLD("Network Interfaces:\n"));
+	for(uint16_t i = 0 ; i < netints->count; i++){
+		fprintf(stderr, CYAN_BOLD("- Name:") " %s\n\t" CYAN_BOLD("Bandwith:") " %lu Mbps\n", (*((*netints).info + i)).name, (*((*netints).info + i)).bandwith_mbps);
+	}
+	fprintf(stderr, CYAN_BOLD(" ---\n"));
+#endif
+}
+
+void getNetworkUsage(net_ints_t *netints){
+
+	/*
+	Get Bandwith
+	cat /sys/class/net/eth0/speed
+
+	Get Network Usage
+	awk '{if(l1){print $2-l1,$10-l2} else{l1=$2; l2=$10;}}' \
+	<(grep wlan0 /proc/net/dev) <(sleep 1; grep wlan0 /proc/net/dev)
+	*/
+
 }
 
 //todo: multithread safe str_split runcmd
