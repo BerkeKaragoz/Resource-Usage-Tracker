@@ -25,12 +25,13 @@
 #define RED_BOLD(X) 	"\033[1;31m"X"\033[0m"
 #define CYAN_BOLD(X) 	"\033[1;34m"X"\033[0m"
 
-#define STR(X) #X
-#define ADD_QUOTES(X) "\""#X"\""
+#define STR(X) 						#X
+#define ADD_QUOTES(X) 				"\""#X"\""
 #define PASS_WITH_SIZEOF(X) 		X, sizeof(X)
 #define PASS_WITH_SIZE_VAR(X) 		X, X##_size
 #define REQUIRE_WITH_SIZE(TYPE, X) 	TYPE X, const size_t X## _size
 #define SOUT(T, X)					fprintf(stderr, CYAN_BOLD(#X)": %"T"\n", X);
+
 
 struct disk_info{
 	char *name;
@@ -54,6 +55,22 @@ typedef struct filesystems{
 	struct filesystem_info *info;
 	uint16_t count;
 }filesystems_t;
+
+struct net_int_info{
+	char *name;
+	size_t bandwith_mbps;
+	size_t up_bps;
+	size_t down_bps;
+};
+
+typedef struct network_interfaces{
+	struct net_int_info *info;
+	uint16_t count;
+}net_ints_t;
+
+
+// Globals
+uint32_t Disk_Interval = DEFAULT_GLOBAL_INTERVAL;
 
 
 // Returns *STR's lenght 
@@ -463,7 +480,7 @@ void *call_getDiskReadWrite(void* disk_info_ptr){
 
 	struct disk_info *dip = (struct disk_info *) disk_info_ptr;
 	
-	getDiskReadWrite(DEFAULT_GLOBAL_INTERVAL, PASS_WITH_SIZEOF(dip->name), &(dip->read_per_sec), &(dip->write_per_sec));
+	getDiskReadWrite(Disk_Interval, PASS_WITH_SIZEOF(dip->name), &(dip->read_per_sec), &(dip->write_per_sec));
 
 	return NULL;
 }
@@ -483,6 +500,40 @@ void *call_getCpuUsage(void *interval_ptr){
 	return NULL;
 }
 
+//Alternative: tail -n +3 /proc/net/dev | awk '{print $1}' | sed 's/.$//'
+void getNetworkInterfaces(net_ints_t *netints){
+
+	char **netints_temp = str_split( run_command("ls /sys/class/net/"), '\n', (size_t *) &netints->count);
+
+	// Delete if NULL
+	if (*netints_temp == NULL){
+		*netints_temp = *(netints_temp + 1);
+		(netints->count)--;
+	}
+
+	uint16_t i;
+	for(i = 1; i < netints->count; i++){
+
+		if( *(netints_temp + i) == NULL ) {
+			if (i + 1 < netints->count){		
+				*(netints_temp + i - 1) = *(netints_temp + i + 1);
+			}
+			(netints->count)--;
+		}
+		
+	}//for
+	// LLUN fi eteleD
+
+	for (uint16_t i = 0; i < netints->count; i++){
+		(*(netints + i)).info = (void *)malloc(sizeof(struct net_int_info));
+		(*((*netints).info + i)).name = *(netints_temp + i);
+	}
+
+	free(netints_temp);
+
+}
+
+//todo: multithread safe str_split runcmd
 int main (){
 #ifdef DEBUG_RUT
 	clock_t _begin = clock();
@@ -493,15 +544,20 @@ int main (){
 
 	disks_t disks;
 	filesystems_t filesystems;
+	net_ints_t netints;
 
+	uint32_t cpu_interval;
+
+	//RAM
 	getFirstVarNumValue(PATH_MEM_INFO, PASS_WITH_SIZEOF("Active:"), 0);
 	getFirstVarNumValue(PATH_MEM_INFO, PASS_WITH_SIZEOF("MemTotal:"), 0);
 
-	getAllDisks(&disks);
-	getPhysicalFilesystems(&filesystems);
+	getAllDisks(&disks); //Disks
+	getPhysicalFilesystems(&filesystems); //Filesystems
+
 	if(disks.count > 1)
 	{
-		getSystemDisk(NULL, NULL);
+		getSystemDisk(NULL, NULL); //System Disk
 	}
 	else if (disks.count <= 0)
 	{
@@ -509,27 +565,31 @@ int main (){
 		exit(EXIT_FAILURE);
 	}
 	
-	if (disks.count > MAX_THREADS){
+	if (disks.count > MAX_THREADS)
+	{
 		fprintf(stderr, RED_BOLD("[ERROR]")" Disk count exceeded maximum amount of threads!\n");
 		exit(EXIT_FAILURE);
 	}
-	uint32_t cpu_interval = DEFAULT_GLOBAL_INTERVAL;
-	pthread_create(&cpu_thread, NULL, call_getCpuUsage, &cpu_interval);
+
+	cpu_interval = DEFAULT_GLOBAL_INTERVAL;
+	pthread_create(&cpu_thread, NULL, call_getCpuUsage, &cpu_interval); // CPU
 
 	disk_io_threads = malloc(disks.count * sizeof(pthread_t)); 
 
-	for (uint16_t i = 0; i < disks.count; i++){
+	for (uint16_t i = 0; i < disks.count; i++){ // Disks Reads/Writes
 		pthread_create(disk_io_threads + i, NULL, call_getDiskReadWrite, disks.info + i);
 	}
 
-	for (uint16_t i = 0; i < disks.count; i++){
+	for (uint16_t i = 0; i < disks.count; i++){ // Join Thread Disks
 		pthread_join(*(disk_io_threads + i), NULL);
 	}
 
-	pthread_join(cpu_thread, NULL);
-
+	pthread_join(cpu_thread, NULL); // Join Thread CPU
+	getNetworkInterfaces(&netints);
 	pthread_exit(NULL);
 	free(disk_io_threads);
+
+
 #ifdef DEBUG_RUT
 	clock_t _end = clock();
 	fprintf(stderr, "\nExecution time: %lf\n", (double)(_end - _begin) / CLOCKS_PER_SEC);
@@ -537,7 +597,4 @@ int main (){
 	return (EXIT_SUCCESS);
 }
 
-// $ cat /proc/self/mountstats | grep /boot/efi | awk '{print $2}' | sed -e "s/\/dev\///g" -e "s/p.//g"
 // $ cat /sys/block/<disk>/device/model ---> KBG30ZMV256G TOSHIBA
-// get active filesystems
-// df --type btrfs --type ext4 --type ext3 --type ext2 --type vfat --type iso9660 | tail -n +2 | awk {'print $1'}
