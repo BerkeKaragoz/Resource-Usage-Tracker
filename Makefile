@@ -13,13 +13,16 @@ DEBUGFLAGS   = -O0 -D _DEBUG
 RELEASEFLAGS = -O2 -D NDEBUG 
 
 
-all: dir $(TARGET) clean
+all: dir $(TARGET) run clean
 
 dir:
 	mkdir -p $(DIR)
 
 $(TARGET): $(OBJECTS)
 		$(CC) $(OBJECTS) $(CFLAGS) $(LIBS) $(RELEASEFLAGS) -o $(TARGET) 
+
+run:
+	$(TARGET)
 
 clean:
 		$(RM) $(OBJECTS)

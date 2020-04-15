@@ -549,7 +549,7 @@ void getNetworkInterfaces(net_ints_t *netints){
 	fclose(bandwith_file);
 
 #ifdef DEBUG_RUT
-	fprintf(stderr, CYAN_BOLD(" --- getNetworkUsage() ---\n"));
+	fprintf(stderr, CYAN_BOLD(" --- getNetworkInterfaces() ---\n"));
 	SOUT("d", netints->count);
 	fprintf(stderr, CYAN_BOLD("Network Interfaces:\n"));
 	for(uint16_t i = 0 ; i < netints->count; i++){
@@ -559,17 +559,58 @@ void getNetworkInterfaces(net_ints_t *netints){
 #endif
 }
 
+/*
+Get Bandwith
+cat /sys/class/net/eth0/speed
+
+Get Network Usage
+awk '{if(l1){print $2-l1,$10-l2} else{l1=$2; l2=$10;}}' \
+<(grep NET_INT_NAME /proc/net/dev) <(sleep 1; grep NET_INT_NAME /proc/net/dev)
+*/
+//tail -n +3 /proc/net/dev | grep NET_INT_NAME | column -t
 void getNetworkUsage(net_ints_t *netints){
+#ifdef DEBUG_RUT
+	fprintf(stderr, CYAN_BOLD(" --- getNetworkUsage(")CYAN_BOLD(") ---\n"));
+#endif
 
-	/*
-	Get Bandwith
-	cat /sys/class/net/eth0/speed
+	for(uint16_t i = 0; i < netints->count; i++){
+		char *input_cmd = (char *)malloc( //todo better strptrlen
+			strptrlen((netints->info + i)->name) * sizeof(char) + sizeof("tail -n +3 /proc/net/dev | grep ")
+		);
 
-	Get Network Usage
-	awk '{if(l1){print $2-l1,$10-l2} else{l1=$2; l2=$10;}}' \
-	<(grep wlan0 /proc/net/dev) <(sleep 1; grep wlan0 /proc/net/dev)
-	*/
+		strcpy(input_cmd, "tail -n +3 /proc/net/dev | grep ");
+		strcat(input_cmd, (netints->info + i)->name);
+		strcat(input_cmd, "| awk '{print $2\" \"$10}'");
 
+		char ***down_up = (char ***)malloc(sizeof(char**) * 2);
+
+		size_t temp_size = 0;
+		*down_up = str_split(run_command(input_cmd), ' ', &temp_size);
+
+		sleep_ms(DEFAULT_GLOBAL_INTERVAL);
+
+		*(down_up + 1) = str_split(run_command(input_cmd), ' ', &temp_size);
+
+		free(input_cmd);
+
+		(netints->info + i)->down_bps = atoll(down_up[1][0]) - atoll(down_up[0][0]); // AD - BD
+		(netints->info + i)->up_bps = atoll(down_up[1][1]) - atoll(down_up[0][1]); // AU - BU
+
+#ifdef DEBUG_RUT
+	fprintf(stderr, CYAN_BOLD(" - \n"));
+
+	SOUT("s", (netints->info + i)->name);
+	SOUT("d", DEFAULT_GLOBAL_INTERVAL);
+	SOUT("s", down_up[0][0]);// Before 	Read
+	SOUT("s", down_up[0][1]);// Before 	Write
+	SOUT("s", down_up[1][0]);// After 	Read
+	SOUT("s", down_up[1][1]);// After 	Write
+	SOUT("d", (netints->info + i)->down_bps);
+	SOUT("d", (netints->info + i)->up_bps);
+
+	fprintf(stderr, CYAN_BOLD(" - \n"));
+#endif
+	}//for
 }
 
 //todo: multithread safe str_split runcmd
@@ -593,6 +634,8 @@ int main (){
 
 	getAllDisks(&disks); //Disks
 	getPhysicalFilesystems(&filesystems); //Filesystems
+	getNetworkInterfaces(&netints); //Network Interfaces
+	getNetworkUsage(&netints);
 
 	if(disks.count > 1)
 	{
@@ -624,7 +667,7 @@ int main (){
 	}
 
 	pthread_join(cpu_thread, NULL); // Join Thread CPU
-	getNetworkInterfaces(&netints);
+	
 	pthread_exit(NULL);
 	free(disk_io_threads);
 
