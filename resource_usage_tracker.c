@@ -640,7 +640,7 @@ int main (){
 	net_ints_t netints;
 
 	uint32_t cpu_interval;
-
+	SOUT("s", run_command("cat /proc/net/arp"));
 	//RAM
 	getFirstVarNumValue(PATH_MEM_INFO, PASS_WITH_SIZEOF("Active:"), 0);
 	getFirstVarNumValue(PATH_MEM_INFO, PASS_WITH_SIZEOF("MemTotal:"), 0);
