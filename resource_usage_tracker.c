@@ -5,6 +5,7 @@
 #include <stdint.h>
 #include <assert.h>
 #include <pthread.h>
+#include <linux/if_arp.h>
 
 #define DEBUG_RUT
 
@@ -58,7 +59,7 @@ typedef struct filesystems{
 
 struct net_int_info{
 	char *name;
-	uint32_t type;
+	uint16_t type;
 	size_t bandwith_mbps;
 	size_t up_bps;
 	size_t down_bps;
@@ -71,7 +72,8 @@ typedef struct network_interfaces{
 
 
 // Globals
-uint32_t Disk_Interval = DEFAULT_GLOBAL_INTERVAL;
+uint32_t 	Disk_Interval 	= DEFAULT_GLOBAL_INTERVAL,
+			NetInt_Interval = DEFAULT_GLOBAL_INTERVAL;
 
 
 // Returns *STR's lenght 
@@ -504,6 +506,10 @@ void *call_getCpuUsage(void *interval_ptr){
 //Alternative: tail -n +3 /proc/net/dev | awk '{print $1}' | sed 's/.$//'
 void getNetworkInterfaces(net_ints_t *netints){
 
+	uint16_t arphrd_temp = UINT32_MAX;
+	char *path = NULL;
+	FILE *net_file = NULL;
+
 	// Get Interface List
 	char **netints_temp = str_split( run_command("ls /sys/class/net/"), '\n', (size_t *) &netints->count);
 
@@ -513,53 +519,71 @@ void getNetworkInterfaces(net_ints_t *netints){
 		(netints->count)--;
 	}
 
-	uint16_t i;
+	uint16_t i, filtered_index = 0;
 	for(i = 1; i < netints->count; i++){
 
-		if( *(netints_temp + i) == NULL ) {
-			if (i + 1 < netints->count){		
+		if( *(netints_temp + i) == NULL )
+		{
+			if (i + 1 < netints->count)
+			{		
 				*(netints_temp + i - 1) = *(netints_temp + i + 1);
 			}
+			
 			(netints->count)--;
+
+		} else {
+
+			// Get Type
+			path = realloc(path, sizeof("/sys/class/net//type") + sizeof(*(netints_temp + i)));
+			strcpy(path, "/sys/class/net/");
+			strcat(path, *(netints_temp + i));
+			strcat(path, "/type");
+
+			net_file = fopen(path, "r");
+
+			fscanf(net_file, "%d", &arphrd_temp);
+			
+
+			if(arphrd_temp > ARPHRD_INFINIBAND)
+			{
+				if(i < 1)
+				{
+					
+					*netints_temp = *(netints_temp + 1);
+
+				} 
+				else if (i + 1 < netints->count)
+				{		SOUT("d", arphrd_temp);
+					*(netints_temp + i - 1) = *(netints_temp + i + 1);
+				}
+
+				(netints->count)--;
+
+			} else {
+
+				(*(netints + filtered_index)).info = (void *)malloc(sizeof(struct net_int_info));
+				(*((*netints).info + filtered_index)).name = *(netints_temp + i);
+				(*((*netints).info + filtered_index)).type = arphrd_temp;
+
+				// Get Bandwith
+				path = realloc(path, sizeof("/sys/class/net//speed") + sizeof((*((*netints).info + filtered_index)).name));
+				strcpy(path, "/sys/class/net/");
+				strcat(path, (*((*netints).info + filtered_index)).name);
+				strcat(path, "/speed");
+				
+				net_file = fopen(path, "r");
+
+				fscanf(net_file, "%lu", &((*netints).info + filtered_index)->bandwith_mbps);
+
+				filtered_index++;
+			}
 		}
-		
 	}//for
 	// LLUN fi eteleD
 
-	for (uint16_t i = 0; i < netints->count; i++){
-		(*(netints + i)).info = (void *)malloc(sizeof(struct net_int_info));
-		(*((*netints).info + i)).name = *(netints_temp + i);
-	}
-
 	free(netints_temp);
-
-	// Get Specs
-	char *path = NULL;
-	FILE *bandwith_file = NULL;
-
-	for (uint16_t i = 0; i < netints->count; i++){
-		// Get Bandwith
-		path = realloc(path, sizeof("/sys/class/net//speed") + sizeof((*((*netints).info + i)).name));
-		strcpy(path, "/sys/class/net/");
-		strcat(path, (*((*netints).info + i)).name);
-		strcat(path, "/speed");
-
-		bandwith_file = fopen(path, "r");
-
-		fscanf(bandwith_file, "%lu", &((*netints).info + i)->bandwith_mbps);
-
-		// Get Type
-		path = realloc(path, sizeof("/sys/class/net//type") + sizeof((*((*netints).info + i)).name));
-		strcpy(path, "/sys/class/net/");
-		strcat(path, (*((*netints).info + i)).name);
-		strcat(path, "/type");
-
-		bandwith_file = fopen(path, "r");
-
-		fscanf(bandwith_file, "%d", &((*netints).info + i)->type);
-	}
 	free(path);
-	fclose(bandwith_file);
+	fclose(net_file);
 
 #ifdef DEBUG_RUT
 	fprintf(stderr, CYAN_BOLD(" --- getNetworkInterfaces() ---\n"));
@@ -570,6 +594,7 @@ void getNetworkInterfaces(net_ints_t *netints){
 	}
 	fprintf(stderr, CYAN_BOLD(" ---\n"));
 #endif
+
 }
 
 /*
@@ -581,7 +606,7 @@ awk '{if(l1){print $2-l1,$10-l2} else{l1=$2; l2=$10;}}' \
 <(grep NET_INT_NAME /proc/net/dev) <(sleep 1; grep NET_INT_NAME /proc/net/dev)
 */
 //tail -n +3 /proc/net/dev | grep NET_INT_NAME | column -t
-void getNetworkUsage(net_ints_t *netints){
+void getNetworkUsage(net_ints_t *netints, uint32_t interval){
 #ifdef DEBUG_RUT
 	fprintf(stderr, CYAN_BOLD(" --- getNetworkUsage(")CYAN_BOLD(") ---\n"));
 #endif
@@ -600,7 +625,7 @@ void getNetworkUsage(net_ints_t *netints){
 		size_t temp_size = 0;
 		*down_up = str_split(run_command(input_cmd), ' ', &temp_size);
 
-		sleep_ms(DEFAULT_GLOBAL_INTERVAL);
+		sleep_ms(interval);
 
 		*(down_up + 1) = str_split(run_command(input_cmd), ' ', &temp_size);
 
@@ -613,7 +638,7 @@ void getNetworkUsage(net_ints_t *netints){
 	fprintf(stderr, CYAN_BOLD(" - \n"));
 
 	SOUT("s", (netints->info + i)->name);
-	SOUT("d", DEFAULT_GLOBAL_INTERVAL);
+	SOUT("d", interval);
 	SOUT("s", down_up[0][0]);// Before 	Read
 	SOUT("s", down_up[0][1]);// Before 	Write
 	SOUT("s", down_up[1][0]);// After 	Read
@@ -640,7 +665,7 @@ int main (){
 	net_ints_t netints;
 
 	uint32_t cpu_interval;
-	SOUT("s", run_command("cat /proc/net/arp"));
+
 	//RAM
 	getFirstVarNumValue(PATH_MEM_INFO, PASS_WITH_SIZEOF("Active:"), 0);
 	getFirstVarNumValue(PATH_MEM_INFO, PASS_WITH_SIZEOF("MemTotal:"), 0);
@@ -648,7 +673,7 @@ int main (){
 	getAllDisks(&disks); //Disks
 	getPhysicalFilesystems(&filesystems); //Filesystems
 	getNetworkInterfaces(&netints); //Network Interfaces
-	getNetworkUsage(&netints);
+	getNetworkUsage(&netints, NetInt_Interval);
 
 	if(disks.count > 1)
 	{
