@@ -58,6 +58,7 @@ typedef struct filesystems{
 
 struct net_int_info{
 	char *name;
+	uint32_t type;
 	size_t bandwith_mbps;
 	size_t up_bps;
 	size_t down_bps;
@@ -503,6 +504,7 @@ void *call_getCpuUsage(void *interval_ptr){
 //Alternative: tail -n +3 /proc/net/dev | awk '{print $1}' | sed 's/.$//'
 void getNetworkInterfaces(net_ints_t *netints){
 
+	// Get Interface List
 	char **netints_temp = str_split( run_command("ls /sys/class/net/"), '\n', (size_t *) &netints->count);
 
 	// Delete if NULL
@@ -531,11 +533,12 @@ void getNetworkInterfaces(net_ints_t *netints){
 
 	free(netints_temp);
 
-	// Get Bandwith
+	// Get Specs
 	char *path = NULL;
 	FILE *bandwith_file = NULL;
 
 	for (uint16_t i = 0; i < netints->count; i++){
+		// Get Bandwith
 		path = realloc(path, sizeof("/sys/class/net//speed") + sizeof((*((*netints).info + i)).name));
 		strcpy(path, "/sys/class/net/");
 		strcat(path, (*((*netints).info + i)).name);
@@ -544,6 +547,16 @@ void getNetworkInterfaces(net_ints_t *netints){
 		bandwith_file = fopen(path, "r");
 
 		fscanf(bandwith_file, "%lu", &((*netints).info + i)->bandwith_mbps);
+
+		// Get Type
+		path = realloc(path, sizeof("/sys/class/net//type") + sizeof((*((*netints).info + i)).name));
+		strcpy(path, "/sys/class/net/");
+		strcat(path, (*((*netints).info + i)).name);
+		strcat(path, "/type");
+
+		bandwith_file = fopen(path, "r");
+
+		fscanf(bandwith_file, "%d", &((*netints).info + i)->type);
 	}
 	free(path);
 	fclose(bandwith_file);
@@ -553,7 +566,7 @@ void getNetworkInterfaces(net_ints_t *netints){
 	SOUT("d", netints->count);
 	fprintf(stderr, CYAN_BOLD("Network Interfaces:\n"));
 	for(uint16_t i = 0 ; i < netints->count; i++){
-		fprintf(stderr, CYAN_BOLD("- Name:") " %s\n\t" CYAN_BOLD("Bandwith:") " %lu Mbps\n", (*((*netints).info + i)).name, (*((*netints).info + i)).bandwith_mbps);
+		fprintf(stderr, CYAN_BOLD("- Name:") " %s\n\t" CYAN_BOLD("Type:") " %d\n\t" CYAN_BOLD("Bandwith:") " %lu Mbps\n", (*((*netints).info + i)).name, (*((*netints).info + i)).type, (*((*netints).info + i)).bandwith_mbps);
 	}
 	fprintf(stderr, CYAN_BOLD(" ---\n"));
 #endif
