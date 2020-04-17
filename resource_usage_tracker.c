@@ -596,49 +596,58 @@ awk '{if(l1){print $2-l1,$10-l2} else{l1=$2; l2=$10;}}' \
 <(grep NET_INT_NAME /proc/net/dev) <(sleep 1; grep NET_INT_NAME /proc/net/dev)
 */
 //tail -n +3 /proc/net/dev | grep NET_INT_NAME | column -t
-void getNetworkUsage(net_ints_t *netints, uint32_t interval){
+void getNetworkIntUsage(struct net_int_info *netint, uint32_t interval){
 #ifdef DEBUG_RUT
-	fprintf(stderr, CYAN_BOLD(" --- getNetworkUsage(")CYAN_BOLD(") ---\n"));
+	fprintf(stderr, CYAN_BOLD(" --- getNetworkIntUsage(")CYAN_BOLD(") ---\n"));
 #endif
 
-	for(uint16_t i = 0; i < netints->count; i++){
-		char *input_cmd = (char *)malloc( //todo better strptrlen
-			strptrlen((netints->info + i)->name) * sizeof(char) + sizeof("tail -n +3 /proc/net/dev | grep ")
-		);
+	char *input_cmd = (char *)malloc( //todo better strptrlen
+		strptrlen(netint->name) * sizeof(char) + sizeof("tail -n +3 /proc/net/dev | grep ")
+	);
 
-		strcpy(input_cmd, "tail -n +3 /proc/net/dev | grep ");
-		strcat(input_cmd, (netints->info + i)->name);
-		strcat(input_cmd, "| awk '{print $2\" \"$10}'");
+	strcpy(input_cmd, "tail -n +3 /proc/net/dev | grep ");
+	strcat(input_cmd, netint->name);
+	strcat(input_cmd, "| awk '{print $2\" \"$10}'");
 
-		char ***down_up = (char ***)malloc(sizeof(char**) * 2);
+	char ***down_up = (char ***)calloc(2, sizeof(char **));
 
-		size_t temp_size = 0;
-		*down_up = str_split(run_command(input_cmd), ' ', &temp_size);
+	size_t temp_size = 0;
+	*down_up = str_split(run_command(input_cmd), ' ', &temp_size);
 
-		sleep_ms(interval);
+	sleep_ms(interval);
 
-		*(down_up + 1) = str_split(run_command(input_cmd), ' ', &temp_size);
+	*(down_up + 1) = str_split(run_command(input_cmd), ' ', &temp_size);
 
-		free(input_cmd);
+	free(input_cmd);
 
-		(netints->info + i)->down_bps = atoll(down_up[1][0]) - atoll(down_up[0][0]); // AD - BD
-		(netints->info + i)->up_bps = atoll(down_up[1][1]) - atoll(down_up[0][1]); // AU - BU
+	netint->down_bps = atoll(down_up[1][0]) - atoll(down_up[0][0]); // AD - BD
+	netint->up_bps = atoll(down_up[1][1]) - atoll(down_up[0][1]); // AU - BU
 
 #ifdef DEBUG_RUT
 	fprintf(stderr, CYAN_BOLD(" - \n"));
 
-	SOUT("s", (netints->info + i)->name);
+	SOUT("s", netint->name);
 	SOUT("d", interval);
-	SOUT("s", down_up[0][0]);// Before 	Read
-	SOUT("s", down_up[0][1]);// Before 	Write
-	SOUT("s", down_up[1][0]);// After 	Read
-	SOUT("s", down_up[1][1]);// After 	Write
-	SOUT("d", (netints->info + i)->down_bps);
-	SOUT("d", (netints->info + i)->up_bps);
+	SOUT("s", down_up[0][0]);// Before 	Down
+	SOUT("s", down_up[0][1]);// Before 	Up
+	SOUT("s", down_up[1][0]);// After 	Down
+	SOUT("s", down_up[1][1]);// After 	Up
+	SOUT("d", netint->down_bps);
+	SOUT("d", netint->up_bps);
 
 	fprintf(stderr, CYAN_BOLD(" - \n"));
 #endif
-	}//for
+
+}
+
+
+void *call_getNetworkIntUsage(void* net_int_info_ptr){
+
+	struct net_int_info *niip = (struct net_int_info *) net_int_info_ptr;
+	
+	getNetworkIntUsage(niip, NetInt_Interval);
+
+	return NULL;
 }
 
 //todo: multithread safe str_split runcmd
@@ -647,8 +656,10 @@ int main (){
 	clock_t _begin = clock();
 #endif
 	fprintf(stderr, "\n");
-	pthread_t *disk_io_threads;
-	pthread_t cpu_thread; 
+
+	pthread_t 	*disk_io_threads,
+				*net_int_threads,
+				cpu_thread;
 
 	disks_t disks;
 	filesystems_t filesystems;
@@ -663,7 +674,6 @@ int main (){
 	getAllDisks(&disks); //Disks
 	getPhysicalFilesystems(&filesystems); //Filesystems
 	getNetworkInterfaces(&netints); //Network Interfaces
-	getNetworkUsage(&netints, NetInt_Interval);
 
 	if(disks.count > 1)
 	{
@@ -681,24 +691,49 @@ int main (){
 		exit(EXIT_FAILURE);
 	}
 
-	cpu_interval = DEFAULT_GLOBAL_INTERVAL;
-	pthread_create(&cpu_thread, NULL, call_getCpuUsage, &cpu_interval); // CPU
+/*
+*	Allocate
+*/
 
 	disk_io_threads = malloc(disks.count * sizeof(pthread_t)); 
+	net_int_threads = malloc(netints.count * sizeof(pthread_t)); 
+
+/*
+*	Create 
+*/
+
+	cpu_interval = DEFAULT_GLOBAL_INTERVAL;
+	pthread_create(&cpu_thread, NULL, call_getCpuUsage, &cpu_interval); // CPU
 
 	for (uint16_t i = 0; i < disks.count; i++){ // Disks Reads/Writes
 		pthread_create(disk_io_threads + i, NULL, call_getDiskReadWrite, disks.info + i);
 	}
 
+	for (uint16_t i = 0; i < netints.count; i++){ // Get Network Interface Infos
+		pthread_create(net_int_threads + i, NULL, call_getNetworkIntUsage, netints.info + i);
+	}
+
+/*
+*	Join
+*/
+
 	for (uint16_t i = 0; i < disks.count; i++){ // Join Thread Disks
 		pthread_join(*(disk_io_threads + i), NULL);
 	}
 
+	for (uint16_t i = 0; i < netints.count; i++){ // Join Thread Network Interfaces
+		pthread_join(*(net_int_threads + i), NULL);
+	}
+
 	pthread_join(cpu_thread, NULL); // Join Thread CPU
-	
+
+/*
+*	Clean Up
+*/
+
 	pthread_exit(NULL);
 	free(disk_io_threads);
-
+	free(net_int_threads);
 
 #ifdef DEBUG_RUT
 	clock_t _end = clock();
