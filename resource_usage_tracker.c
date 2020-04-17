@@ -506,11 +506,7 @@ void *call_getCpuUsage(void *interval_ptr){
 //Alternative: tail -n +3 /proc/net/dev | awk '{print $1}' | sed 's/.$//'
 void getNetworkInterfaces(net_ints_t *netints){
 
-	uint16_t arphrd_temp = UINT32_MAX;
-	char *path = NULL;
-	FILE *net_file = NULL;
-
-	// Get Interface List
+		// Get Interface List
 	char **netints_temp = str_split( run_command("ls /sys/class/net/"), '\n', (size_t *) &netints->count);
 
 	// Delete if NULL
@@ -519,69 +515,63 @@ void getNetworkInterfaces(net_ints_t *netints){
 		(netints->count)--;
 	}
 
-	uint16_t i, filtered_index = 0;
+	uint16_t i;
 	for(i = 1; i < netints->count; i++){
 
-		if( *(netints_temp + i) == NULL )
-		{
-			if (i + 1 < netints->count)
-			{		
+		if( *(netints_temp + i) == NULL ) {
+			if (i + 1 < netints->count){		
 				*(netints_temp + i - 1) = *(netints_temp + i + 1);
 			}
-			
 			(netints->count)--;
-
-		} else {
-
-			// Get Type
-			path = realloc(path, sizeof("/sys/class/net//type") + sizeof(*(netints_temp + i)));
-			strcpy(path, "/sys/class/net/");
-			strcat(path, *(netints_temp + i));
-			strcat(path, "/type");
-
-			net_file = fopen(path, "r");
-
-			fscanf(net_file, "%d", &arphrd_temp);
-			
-
-			if(arphrd_temp > ARPHRD_INFINIBAND)
-			{
-				if(i < 1)
-				{
-					
-					*netints_temp = *(netints_temp + 1);
-
-				} 
-				else if (i + 1 < netints->count)
-				{		SOUT("d", arphrd_temp);
-					*(netints_temp + i - 1) = *(netints_temp + i + 1);
-				}
-
-				(netints->count)--;
-
-			} else {
-
-				(*(netints + filtered_index)).info = (void *)malloc(sizeof(struct net_int_info));
-				(*((*netints).info + filtered_index)).name = *(netints_temp + i);
-				(*((*netints).info + filtered_index)).type = arphrd_temp;
-
-				// Get Bandwith
-				path = realloc(path, sizeof("/sys/class/net//speed") + sizeof((*((*netints).info + filtered_index)).name));
-				strcpy(path, "/sys/class/net/");
-				strcat(path, (*((*netints).info + filtered_index)).name);
-				strcat(path, "/speed");
-				
-				net_file = fopen(path, "r");
-
-				fscanf(net_file, "%lu", &((*netints).info + filtered_index)->bandwith_mbps);
-
-				filtered_index++;
-			}
 		}
+		
 	}//for
 	// LLUN fi eteleD
 
+	for (uint16_t i = 0; i < netints->count; i++){
+		(*(netints + i)).info = (void *)malloc(sizeof(struct net_int_info));
+		(*((*netints).info + i)).name = *(netints_temp + i);
+	}
+
 	free(netints_temp);
+
+	// Get Specs
+	char *path = NULL;
+	FILE *net_file = NULL;
+
+	uint16_t filtered_index = 0, arphdr_no = UINT16_MAX;
+	for (uint16_t i = 0; i < netints->count; i++){
+		// Get Type
+		path = realloc(path, sizeof("/sys/class/net//type") + sizeof((*((*netints).info + i)).name));
+		strcpy(path, "/sys/class/net/");
+		strcat(path, (*((*netints).info + i)).name);
+		strcat(path, "/type");
+
+		net_file = fopen(path, "r");
+
+		fscanf(net_file, "%d", &arphdr_no);
+
+		// Discard if not an ARP Hardware interface
+		if ( arphdr_no <= ARPHRD_INFINIBAND){
+
+			// Assign to the list
+			(*((*netints).info + filtered_index)).name = (*((*netints).info + i)).name;
+			(*((*netints).info + filtered_index)).type = arphdr_no;
+
+			// Get Bandwith
+			path = realloc(path, sizeof("/sys/class/net//speed") + sizeof((*((*netints).info + filtered_index)).name));
+			strcpy(path, "/sys/class/net/");
+			strcat(path, (*((*netints).info + filtered_index)).name);
+			strcat(path, "/speed");
+
+			net_file = fopen(path, "r");
+
+			fscanf(net_file, "%lu", &((*netints).info + i)->bandwith_mbps);
+			filtered_index++;
+		} else {
+			(netints->count)--;
+		}
+	}
 	free(path);
 	fclose(net_file);
 
