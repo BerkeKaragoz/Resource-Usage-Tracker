@@ -359,7 +359,7 @@ void getDiskReadWrite(const uint32_t ms_interval, REQUIRE_WITH_SIZE(char *, disk
 	strcat(input_cmd, "\" {print $6\"\\t\"$10}' /proc/diskstats");
 
 	size_t temp_size = 0;
-	char ***read_write = (char ***)malloc(sizeof(char**) * 2);
+	char ***read_write = (char ***)calloc(2, sizeof(char **));
 	
 	*read_write = str_split(run_command(input_cmd), '\t', &temp_size);
 
@@ -602,12 +602,12 @@ void getNetworkIntUsage(struct net_int_info *netint, uint32_t interval){
 #endif
 
 	char *input_cmd = (char *)malloc( //todo better strptrlen
-		strptrlen(netint->name) * sizeof(char) + sizeof("tail -n +3 /proc/net/dev | grep ")
+		strptrlen(netint->name) * sizeof(char) + sizeof("tail -n +3 /proc/net/dev | grep | awk '{print $2\" \"$10}'")
 	);
 
 	strcpy(input_cmd, "tail -n +3 /proc/net/dev | grep ");
 	strcat(input_cmd, netint->name);
-	strcat(input_cmd, "| awk '{print $2\" \"$10}'");
+	strcat(input_cmd, " | awk '{print $2\" \"$10}'");
 
 	char ***down_up = (char ***)calloc(2, sizeof(char **));
 
