@@ -2,11 +2,11 @@ CC = gcc
 
 
 CFLAGS  =  -g -Wall -pthread
-LIBS 	= 
+LIBS 	= $(wildcard berkelib/*)
 DIR = ./build/
 TARGET = $(DIR)resource_usage_tracker
 SOURCES = $(wildcard *.c)
-HEADERS = $(wildcard *.h) 
+HEADERS = $(wildcard *.h)
 OBJECTS = $(SOURCES:.c=.o)
 
 DEBUGFLAGS   = -O0 -D _DEBUG
@@ -20,6 +20,8 @@ dir:
 
 $(TARGET): $(OBJECTS)
 		$(CC) $(OBJECTS) $(CFLAGS) $(LIBS) $(RELEASEFLAGS) -o $(TARGET) 
+
+vpath %.c berkelib/*
 
 run:
 	$(TARGET)

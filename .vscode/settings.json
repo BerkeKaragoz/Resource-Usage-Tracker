@@ -1,10 +1,7 @@
 {
     "files.associations": {
-        "typeinfo": "c",
-        "types.h": "c",
-        "socket.h": "c",
-        "netdevice.h": "c",
-        "if_arp.h": "c",
-        "type_traits": "c"
+        "assert.h": "c",
+        "pthread.h": "c",
+        "if_arp.h": "c"
     }
 }
