@@ -1,7 +1,0 @@
-{
-    "files.associations": {
-        "assert.h": "c",
-        "pthread.h": "c",
-        "if_arp.h": "c"
-    }
-}
