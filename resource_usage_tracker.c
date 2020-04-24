@@ -8,6 +8,7 @@
 #include <string.h>
 #include <time.h>
 #include <stdint.h>
+#include <pthread.h>
 #include <linux/if_arp.h>
 
 #include "berkelib/macros_.h"
@@ -15,10 +16,24 @@
 #include "resource_usage_tracker.h"
 
 #define DEBUG_RUT
-//#undef DEBUG_RUT
+#undef DEBUG_RUT
+
+/*
+*	Globals
+*/
+
+extern enum program_states 			Program_State 	= Ready;
+extern enum initialization_states 	Init_State 		= None;
+
+pthread_mutex_t Cpu_Mutex = PTHREAD_MUTEX_INITIALIZER;
+
+/*
+*	Functions
+*/
 
 // Get CPU's snapshot
-void getCpuTimings(uint32_t *cpu_total, uint32_t *cpu_idle){
+void getCpuTimings(uint32_t *cpu_total, uint32_t *cpu_idle, REQUIRE_WITH_SIZE(char *, cpu_identifier)){
+
 	*cpu_total = 0;
 	*cpu_idle = 0;
 
@@ -26,44 +41,125 @@ void getCpuTimings(uint32_t *cpu_total, uint32_t *cpu_idle){
 	uint8_t i = 0;
 	char* token;
 
-	token = strtok(readSearchGetFirstLine(PATH_CPU_STATS, PASS_WITH_SIZEOF("cpu"), 1, PASS_WITH_SIZEOF(" ")), delim);
+	token = strtok(readSearchGetFirstLine(PATH_CPU_STATS, PASS_WITH_SIZE_VAR(cpu_identifier), 1, PASS_WITH_SIZEOF(" ")), delim);
 	token = strtok(NULL, delim); // skip cpu_id
 
 	while ( token != NULL){
+
 		*cpu_total += atol(token);
 		token = strtok(NULL, delim);
+
 		if (++i == 3){
+
 			if (token) {
+
 				*cpu_idle = atol(token);
+
 			} else {
+
 				*cpu_total = 0;
 				*cpu_idle = 0;
-				printf("[ERROR] Could NOT parse: %s\n", "getCpuTimings");
+
+				printf( RED_BOLD("[ERROR]") " Could NOT parse: %s\n", "getCpuTimings");
 				return;
 			}
+
 		}
-	}
+
+	}// while
 }
 
 // 1000 ms is stable
 // cat <(grep cpu /proc/stat) <(sleep 0.1 && grep cpu /proc/stat) | awk -v RS="" '{printf "%.1f", ($13-$2+$15-$4)*100/($13-$2+$15-$4+$16-$5)}
-float getCpuUsage(const uint32_t ms_interval){
-	uint32_t 	total = 0, idle = 0,
-				prev_total = 0, prev_idle = 0;
+void *getCpuUsage(void *interval_ptr){
+
+/*
+*	Test The Parameter
+*/
+
+	uint32_t interval = DEFAULT_GLOBAL_INTERVAL;
+	
+	if ( (int64_t *) interval_ptr >= 0 ){
+
+		interval = *((uint32_t *) interval_ptr);
+
+	} else {
+
+		fprintf(STD, RED_BOLD("[ERROR] CPU Interval is lower than 0. It is set to %d.\n"), DEFAULT_GLOBAL_INTERVAL);
+
+	}
+
+/*
+*	Declarations
+*/
+
+	uint32_t	total		= 0,	idle		= 0,
+				prev_total	= 0,	prev_idle	= 0;
+
 	float 		usage = 0;
 
-	getCpuTimings(&prev_total, &prev_idle);
-	sleep_ms(ms_interval);
-	getCpuTimings(&total, &idle);
+/*
+*	Initialize CPU Timings
+*/
 
-	usage = (float) (1.0 - (long double) (idle-prev_idle) / (long double) (total-prev_total) ) * 100.0;
+	pthread_mutex_lock(&Cpu_Mutex);
+
+	getCpuTimings(&total, &idle, PASS_WITH_SIZEOF("cpu"));
+	sleep_ms(interval);
+
+	Init_State |= Cpu;
+
+	pthread_mutex_unlock(&Cpu_Mutex);
+
+/*
+*	Get CPU Usage Till The Program Stops
+*/
+
+	if( Init_State & Cpu ){
+
+		while( Program_State & Running ){
+
+			pthread_mutex_lock(&Cpu_Mutex);
+
+			prev_idle 	= idle;
+			prev_total 	= total;
+
+			getCpuTimings(&total, &idle, PASS_WITH_SIZEOF("cpu"));
+		
+			usage = (float) (1.0 - (long double) (idle-prev_idle) / (long double) (total-prev_total) ) * 100.0;
+			
+			// Output
+			CONSOLE_GOTO(0, 0);
+			fprintf(STD, "CPU Usage: %2.2f%%\n", usage);
+			fflush(STD);
+
 #ifdef DEBUG_RUT
-	fprintf(STD, CYAN_BOLD(" --- getCpuUsage()\n"));
-	fprintf(STD, CYAN_BOLD("Interval")": %d\n", ms_interval);
-	fprintf(STD, CYAN_BOLD("Usage")": %2.2f%%\n", usage);
-	fprintf(STD, CYAN_BOLD(" ---\n"));
+			fprintf(STD,
+				CYAN_BOLD(" --- getCpuUsage()\n")	\
+					PR_VAR("d", ms_interval)		\
+					PR_VAR("2.2f", usage)			\
+				CYAN_BOLD(" ---\n") 				\
+				, ms_interval, usage
+			);
 #endif
-	return usage;
+			// ---
+
+			pthread_mutex_unlock(&Cpu_Mutex);
+
+			sleep_ms(interval);
+
+		}
+
+		return;
+
+	} else {
+
+		fprintf(STD, RED_BOLD("[ERROR]") " CPU Timings are not initialized.\n");
+		return;
+
+	}
+
+	return;
 }
 
 // Find the first VARIABLE in PATH and return its numeric value
@@ -350,11 +446,8 @@ awk '{if(l1){print $2-l1,$10-l2} else{l1=$2; l2=$10;}}' \
 */
 //tail -n +3 /proc/net/dev | grep NET_INT_NAME | column -t
 void getNetworkIntUsage(struct net_int_info *netint, uint32_t interval){
-#ifdef DEBUG_RUT
-	fprintf(STD, CYAN_BOLD(" --- getNetworkIntUsage(")CYAN_BOLD(") ---\n"));
-#endif
 
-	char *input_cmd = (char *)malloc( //todo better strptrlen
+	char *input_cmd = (char *)malloc(
 		strptrlen(netint->name) * sizeof(char) + sizeof("tail -n +3 /proc/net/dev | grep | awk '{print $2\" \"$10}'")
 	);
 
@@ -377,17 +470,19 @@ void getNetworkIntUsage(struct net_int_info *netint, uint32_t interval){
 	netint->up_bps = atoll(down_up[1][1]) - atoll(down_up[0][1]); // AU - BU
 
 #ifdef DEBUG_RUT
-	fprintf(STD, CYAN_BOLD(" - \n"));
 
-	SOUT("s", netint->name);
-	SOUT("d", interval);
-	SOUT("s", down_up[0][0]);// Before 	Down
-	SOUT("s", down_up[0][1]);// Before 	Up
-	SOUT("s", down_up[1][0]);// After 	Down
-	SOUT("s", down_up[1][1]);// After 	Up
-	SOUT("d", netint->down_bps);
-	SOUT("d", netint->up_bps);
+	fprintf(STD,
+		CYAN_BOLD(" --- getNetworkIntUsage(") "%s" CYAN_BOLD(") ---\n") \
+			PR_VAR("d", interval)			\
+			PR_VAR("s", down_up[0][0])		\
+			PR_VAR("s", down_up[0][1])		\
+			PR_VAR("s", down_up[1][0])		\
+			PR_VAR("s", down_up[1][1])		\
+			PR_VAR("d", netint->down_bps)	\
+			PR_VAR("d", netint->up_bps)		\
+		CYAN_BOLD(" ---\n") 				\
+		, netint->name, interval, down_up[0][0], down_up[0][1], down_up[1][0], down_up[1][1], netint->down_bps, netint->up_bps
+	);
 
-	fprintf(STD, CYAN_BOLD(" - \n"));
 #endif
 }

@@ -20,6 +20,23 @@
 #define PATH_MOUNT_STATS 	PATH_PROC "self/mountstats"
 #define PATH_MEM_INFO 		PATH_PROC "meminfo"
 
+enum program_states{
+	Undefined 		= 0b0000,
+	Ready 			= 0b0001,
+	Initialized 	= 0b0010,
+	Running 		= 0b0100,
+	Stopped			= 0b1000
+}Program_State;
+
+enum initialization_states{
+	None 				= 0b00000,
+	Cpu 				= 0b00001,
+	Ram 				= 0b00010,
+	Disk_io 			= 0b00100,
+	Network_Interface	= 0b01000,
+	Filesystems 		= 0b10000
+}Init_State;
+
 struct disk_info{
 	char *name;
 	size_t read_per_sec;
@@ -56,8 +73,8 @@ typedef struct network_interfaces{
 	uint16_t count;
 }net_ints_t;
 
-void 		getCpuTimings			(uint32_t *cpu_total, uint32_t *cpu_idle);
-float 		getCpuUsage				(const uint32_t ms_interval);
+void 		getCpuTimings			(uint32_t *cpu_total, uint32_t *cpu_idle, REQUIRE_WITH_SIZE(char *, cpu_identifier));
+void * 		getCpuUsage				(void *ms_interval);
 uint64_t 	getFirstVarNumValue		(const char* path, REQUIRE_WITH_SIZE(const char*, variable), const uint16_t variable_column_no );
 char * 		getSystemDisk			(char* os_partition_name, char* maj_no);
 void 		getDiskReadWrite		(const uint32_t ms_interval, REQUIRE_WITH_SIZE(char *, disk_name), size_t *bread_sec_out, size_t *bwrite_sec_out);

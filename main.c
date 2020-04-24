@@ -12,7 +12,7 @@
 #include "berkelib/macros_.h"
 #include "berkelib/utils_.h"
 
-#define DEBUG_RUT
+//#define DEBUG_RUT
 
 #ifdef DEBUG_RUT
 #include <time.h>
@@ -55,12 +55,14 @@ void *call_getNetworkIntUsage(void* net_int_info_ptr){
 	return NULL;
 }
 
-//todo: multithread safe str_split runcmd
 int main (){
 #ifdef DEBUG_RUT
 	clock_t _begin = clock();
 #endif
-	fprintf(STD, "\n");
+	CONSOLE_RESET();
+
+	Program_State |= Initialized;
+	Program_State |= Running;
 
 	pthread_t 	*disk_io_threads,
 				*net_int_threads,
@@ -104,11 +106,11 @@ int main (){
 	net_int_threads = malloc(netints.count * sizeof(pthread_t)); 
 
 /*
-*	Create 
+*	Create
 */
 
 	cpu_interval = DEFAULT_GLOBAL_INTERVAL;
-	pthread_create(&cpu_thread, NULL, call_getCpuUsage, &cpu_interval); // CPU
+	pthread_create(&cpu_thread, NULL, getCpuUsage, &cpu_interval); // CPU
 
 	for (uint16_t i = 0; i < disks.count; i++){ // Disks Reads/Writes
 		pthread_create(disk_io_threads + i, NULL, call_getDiskReadWrite, disks.info + i);
@@ -139,6 +141,8 @@ int main (){
 	pthread_exit(NULL);
 	free(disk_io_threads);
 	free(net_int_threads);
+
+	Program_State = Stopped;
 
 #ifdef DEBUG_RUT
 	clock_t _end = clock();
