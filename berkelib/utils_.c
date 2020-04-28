@@ -13,13 +13,14 @@
 #include "macros_.h"
 #include "utils_.h"
 
+
 // Returns *STR's lenght 
-size_t strptrlen(char *str){
+void str_ptrlen(size_t *output, char *str){
 	char *tmp = str;
-	size_t str_lenght = 0;
+	*output = 0;
 	// Count STR's lenght
-	while(*tmp++) str_lenght++;
-	return str_lenght * sizeof(char);
+	while(*tmp++) (*output)++;
+	return NULL;
 }
 
 // Splits STR by the DELIMITER to string array and returns it with element COUNT
@@ -115,7 +116,9 @@ uint16_t leftTrimTill(char *strptr, const char ch){
 		}
 	} while(ptr != NULL);
 
-	uint16_t output_len = strptrlen(strptr);
+	uint16_t output_len;
+	str_ptrlen(&output_len, strptr);
+
 	memmove(strptr, strptr+index+1, output_len);
 
 	return output_len - index - 1;
@@ -155,10 +158,12 @@ char* readSearchGetFirstLine(const char* path, REQUIRE_WITH_SIZE(const char*, se
 	
 	*output = '\0';
 
+	size_t temp_size = 0;
 	uint16_t i;
 	while( fgets(line, buffer_size, fp) != NULL ) {
-			
-		output_size += strptrlen(line) * sizeof(char);
+		
+		str_ptrlen(&temp_size, line);
+		output_size += temp_size * sizeof(char);
 		output = realloc(output, output_size);
 		strcat(output, line);
 

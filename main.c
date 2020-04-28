@@ -29,21 +29,6 @@ void *call_getDiskReadWrite(void* disk_info_ptr){
 	return NULL;
 }
 
-void *call_getCpuUsage(void *interval_ptr){
-	
-	uint32_t interval = DEFAULT_GLOBAL_INTERVAL;
-	
-	if ( (int64_t *) interval_ptr >= 0 ){
-		interval = *((uint32_t *) interval_ptr);
-	} else {
-		fprintf(STD, RED_BOLD("[ERROR] CPU Interval is lower than 0. It is set to %d.\n"), DEFAULT_GLOBAL_INTERVAL);
-	}
-
-	getCpuUsage(interval);
-
-	return NULL;
-}
-
 void *call_getNetworkIntUsage(void* net_int_info_ptr){
 
 	struct net_int_info *niip = (struct net_int_info *) net_int_info_ptr;

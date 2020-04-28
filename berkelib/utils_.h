@@ -11,7 +11,7 @@
 
 #include "macros_.h"
 
-size_t 		strptrlen				(char *str);
+void        str_ptrlen              (size_t *output, char *str);
 void 	    str_split				(char *** output, char *str, const char delimiter, size_t *count_ptr);
 void 		sleep_ms				(const uint32_t milliseconds);
 char * 		run_command				(char *command);

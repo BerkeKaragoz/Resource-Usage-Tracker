@@ -458,8 +458,10 @@ awk '{if(l1){print $2-l1,$10-l2} else{l1=$2; l2=$10;}}' \
 //tail -n +3 /proc/net/dev | grep NET_INT_NAME | column -t
 void getNetworkIntUsage(struct net_int_info *netint, uint32_t interval){
 
+	size_t temp_size;
+	str_ptrlen(&temp_size, netint->name);
 	char *input_cmd = (char *)malloc(
-		strptrlen(netint->name) * sizeof(char) + sizeof("tail -n +3 /proc/net/dev | grep | awk '{print $2\" \"$10}'")
+		temp_size * sizeof(char) + sizeof("tail -n +3 /proc/net/dev | grep | awk '{print $2\" \"$10}'")
 	);
 
 	strcpy(input_cmd, "tail -n +3 /proc/net/dev | grep ");
@@ -468,7 +470,7 @@ void getNetworkIntUsage(struct net_int_info *netint, uint32_t interval){
 
 	char ***down_up = (char ***)calloc(2, sizeof(char **));
 
-	size_t temp_size = 0;
+	temp_size = 0;
 	str_split(down_up, run_command(input_cmd), ' ', &temp_size);
 
 	sleep_ms(interval);
