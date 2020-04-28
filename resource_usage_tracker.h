@@ -21,20 +21,25 @@
 #define PATH_MEM_INFO 		PATH_PROC "meminfo"
 
 enum program_states{
-	Undefined 		= 0b0000,
-	Ready 			= 0b0001,
-	Initialized 	= 0b0010,
-	Running 		= 0b0100,
-	Stopped			= 0b1000
+	ps_Undefined 	= 0b0000,
+	ps_Ready 		= 0b0001,
+	ps_Initialized 	= 0b0010,
+	ps_Running 		= 0b0100,
+	ps_Stopped		= 0b1000
 }Program_State;
 
+enum program_flags{
+	pf_None 			= 0b0,
+	pf_No_CLI_Output 	= 0b1
+}Program_Flag;
+
 enum initialization_states{
-	None 				= 0b00000,
-	Cpu 				= 0b00001,
-	Ram 				= 0b00010,
-	Disk_io 			= 0b00100,
-	Network_Interface	= 0b01000,
-	Filesystems 		= 0b10000
+	is_None 				= 0b00000,
+	is_Cpu 					= 0b00001,
+	is_Ram 					= 0b00010,
+	is_Disk_io 				= 0b00100,
+	is_Network_Interface	= 0b01000,
+	is_Filesystems 			= 0b10000
 }Init_State;
 
 struct disk_info{

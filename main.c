@@ -61,8 +61,8 @@ int main (){
 #endif
 	CONSOLE_RESET();
 
-	Program_State |= Initialized;
-	Program_State |= Running;
+	Program_State |= ps_Initialized;
+	Program_State |= ps_Running;
 
 	pthread_t 	*disk_io_threads,
 				*net_int_threads,
@@ -142,7 +142,7 @@ int main (){
 	free(disk_io_threads);
 	free(net_int_threads);
 
-	Program_State = Stopped;
+	Program_State = ps_Stopped;
 
 #ifdef DEBUG_RUT
 	clock_t _end = clock();

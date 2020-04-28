@@ -22,8 +22,9 @@
 *	Globals
 */
 
-extern enum program_states 			Program_State 	= Ready;
-extern enum initialization_states 	Init_State 		= None;
+extern enum program_states 			Program_State 	= ps_Ready;
+extern enum program_flags			Program_Flag	= pf_None;
+extern enum initialization_states 	Init_State 		= is_None;
 
 pthread_mutex_t Cpu_Mutex = PTHREAD_MUTEX_INITIALIZER;
 
@@ -107,7 +108,7 @@ void *getCpuUsage(void *interval_ptr){
 	getCpuTimings(&total, &idle, PASS_WITH_SIZEOF("cpu"));
 	sleep_ms(interval);
 
-	Init_State |= Cpu;
+	Init_State |= is_Cpu;
 
 	pthread_mutex_unlock(&Cpu_Mutex);
 
@@ -115,9 +116,9 @@ void *getCpuUsage(void *interval_ptr){
 *	Get CPU Usage Till The Program Stops
 */
 
-	if( Init_State & Cpu ){
+	if( Init_State & is_Cpu ){
 
-		while( Program_State & Running ){
+		while( Program_State & ps_Running ){
 
 			pthread_mutex_lock(&Cpu_Mutex);
 
@@ -129,9 +130,13 @@ void *getCpuUsage(void *interval_ptr){
 			usage = (float) (1.0 - (long double) (idle-prev_idle) / (long double) (total-prev_total) ) * 100.0;
 			
 			// Output
-			CONSOLE_GOTO(0, 0);
-			fprintf(STD, "CPU Usage: %2.2f%%\n", usage);
-			fflush(STD);
+			if ( !(Program_Flag & pf_No_CLI_Output) ){
+
+				CONSOLE_GOTO(0, 0);
+				fprintf(STD, "CPU Usage: %2.2f%%\n", usage);
+				fflush(STD);
+
+			}
 
 #ifdef DEBUG_RUT
 			fprintf(STD,
@@ -150,16 +155,16 @@ void *getCpuUsage(void *interval_ptr){
 
 		}
 
-		return;
+		return NULL;
 
 	} else {
 
 		fprintf(STD, RED_BOLD("[ERROR]") " CPU Timings are not initialized.\n");
-		return;
+		return NULL;
 
 	}
 
-	return;
+	return NULL;
 }
 
 // Find the first VARIABLE in PATH and return its numeric value
