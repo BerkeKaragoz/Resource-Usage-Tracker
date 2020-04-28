@@ -12,8 +12,6 @@
 #include "berkelib/macros_.h"
 #include "berkelib/utils_.h"
 
-//#define DEBUG_RUT
-
 #ifdef DEBUG_RUT
 #include <time.h>
 #endif

@@ -23,15 +23,17 @@ size_t strptrlen(char *str){
 }
 
 // Splits STR by the DELIMITER to string array and returns it with element COUNT
-char** str_split(char* str, const char delimiter, size_t *count_ptr){
-    char** result    = 0;
-    char* tmp        = str;
-    char* last_comma = 0;
-    char delim[2];
-    delim[0] = delimiter;
-    delim[1] = 0;
+void str_split(char ***output, char *str, const char delimiter, size_t *count_ptr){	
+	
+	char *tmp        = str;
+    char *last_comma = 0;
 
-	*count_ptr = 0;
+	char delim[2];
+    delim[0] 			= delimiter;
+    delim[1] 			= 0;
+
+	*output    	= 0;
+	*count_ptr 	= 0;
 
     // Count how many elements will be extracted.
     while (*tmp)
@@ -51,9 +53,9 @@ char** str_split(char* str, const char delimiter, size_t *count_ptr){
     // knows where the list of returned strings ends.
     (*count_ptr)++;
 
-    result = malloc(sizeof(char*) * (*count_ptr));
+    *output = malloc(sizeof(char*) * (*count_ptr));
 
-    if (result)
+    if (*output)
     {
         size_t idx  = 0;
         char* token = strtok(str, delim);
@@ -61,14 +63,14 @@ char** str_split(char* str, const char delimiter, size_t *count_ptr){
         while (token)
         {
             assert(idx < *count_ptr);
-            *(result + idx++) = strdup(token);
+            *(*output + idx++) = strdup(token);
             token = strtok(0, delim);
         }
         assert(idx == *count_ptr - 1);
-        *(result + idx) = 0;
+        *(*output + idx) = 0;
     }
 
-    return result;
+    return NULL;
 }
 
 void sleep_ms(const uint32_t milliseconds) {

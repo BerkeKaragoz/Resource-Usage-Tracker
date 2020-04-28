@@ -15,15 +15,15 @@
 #include "berkelib/utils_.h"
 #include "resource_usage_tracker.h"
 
-#define DEBUG_RUT
-#undef DEBUG_RUT
-
 /*
 *	Globals
 */
-
-extern enum program_states 			Program_State 	= ps_Ready;
+#ifdef DEBUG_RUT
+extern enum program_flags			Program_Flag	= pf_No_CLI_Output;
+#else
 extern enum program_flags			Program_Flag	= pf_None;
+#endif
+extern enum program_states 			Program_State 	= ps_Ready;
 extern enum initialization_states 	Init_State 		= is_None;
 
 pthread_mutex_t Cpu_Mutex = PTHREAD_MUTEX_INITIALIZER;
@@ -141,10 +141,10 @@ void *getCpuUsage(void *interval_ptr){
 #ifdef DEBUG_RUT
 			fprintf(STD,
 				CYAN_BOLD(" --- getCpuUsage()\n")	\
-					PR_VAR("d", ms_interval)		\
+					PR_VAR("d", interval)		\
 					PR_VAR("2.2f", usage)			\
 				CYAN_BOLD(" ---\n") 				\
-				, ms_interval, usage
+				, interval, usage
 			);
 #endif
 			// ---
@@ -234,13 +234,13 @@ void getDiskReadWrite(const uint32_t ms_interval, REQUIRE_WITH_SIZE(char *, disk
 	strcat(input_cmd, "\" {print $6\"\\t\"$10}' /proc/diskstats");
 
 	size_t temp_size = 0;
-	char ***read_write = (char ***)calloc(2, sizeof(char **));
+	char ***read_write 	= ( char *** ) 	malloc ( sizeof(char **) * 2 );
 	
-	*read_write = str_split(run_command(input_cmd), '\t', &temp_size);
+	str_split(read_write, run_command(input_cmd), '\t', &temp_size);
 
 	sleep_ms(ms_interval);
 
-	*(read_write + 1) = str_split(run_command(input_cmd), '\t', &temp_size);
+	str_split((read_write + 1), run_command(input_cmd), '\t', &temp_size);
 	free(input_cmd);
 
 	*bread_sec_out = atoll(read_write[1][0]) - atoll(read_write[0][0]); // BR - AR
@@ -269,7 +269,9 @@ void getDiskReadWrite(const uint32_t ms_interval, REQUIRE_WITH_SIZE(char *, disk
 // Get disks names and maj if minor no is == 0
 // $ cat "PATH_DISK_STATS" | awk '$2 == 0 {print $3}'
 void getAllDisks(disks_t *disks){
-	char **temp = str_split( run_command("awk '$2 == 0 {print $3}' "PATH_DISK_STATS), '\n', (size_t *) &disks->count);
+	char **temp = NULL;
+
+	str_split(&temp , run_command("awk '$2 == 0 {print $3}' "PATH_DISK_STATS), '\n', (size_t *) &disks->count);
 
 	// Delete if NULL
 	if (*temp == NULL){
@@ -310,7 +312,9 @@ void getAllDisks(disks_t *disks){
 
 // df --type btrfs --type ext4 --type ext3 --type ext2 --type vfat --type iso9660 --block-size=1 | tail -n +2 | awk {'print $1" "$2" "$3" "$4'}
 void getPhysicalFilesystems(filesystems_t *filesystems){
-	char **filesystems_temp = str_split( run_command("df --type btrfs --type ext4 --type ext3 --type ext2 --type vfat --type iso9660 --block-size=1 | tail -n +2 | awk {'print $1\" \"$2\" \"$3\" \"$4'}"), '\n', (size_t *) &filesystems->count);
+	char **filesystems_temp = NULL;
+	
+	str_split(&filesystems_temp, run_command("df --type btrfs --type ext4 --type ext3 --type ext2 --type vfat --type iso9660 --block-size=1 | tail -n +2 | awk {'print $1\" \"$2\" \"$3\" \"$4'}"), '\n', (size_t *) &filesystems->count);
 
 	// Delete if NULL
 	if (*filesystems_temp == NULL){
@@ -331,10 +335,10 @@ void getPhysicalFilesystems(filesystems_t *filesystems){
 	}//for
 	// LLUN fi eteleD
 	size_t info_field_count = 0;
-	char **fsi_temp;
+	char **fsi_temp = NULL;
 	for (i = 0; i < filesystems->count; i++){
 		(*(filesystems + i)).info = (struct filesystem_info *)malloc(sizeof(struct filesystem_info));
-		fsi_temp = str_split(*(filesystems_temp + i), ' ', &info_field_count );
+		str_split(&fsi_temp, *(filesystems_temp + i), ' ', &info_field_count );
 		(*((*filesystems).info + i)).partition 	= *(fsi_temp + 0);
 		(*((*filesystems).info + i)).block_size = (size_t) *(fsi_temp + 1); // as 1-byte sizes
 		(*((*filesystems).info + i)).used 		= (size_t) *(fsi_temp + 2);
@@ -360,8 +364,10 @@ void getPhysicalFilesystems(filesystems_t *filesystems){
 //Alternative: tail -n +3 /proc/net/dev | awk '{print $1}' | sed 's/.$//'
 void getNetworkInterfaces(net_ints_t *netints){
 
-		// Get Interface List
-	char **netints_temp = str_split( run_command("ls /sys/class/net/"), '\n', (size_t *) &netints->count);
+	// Get Interface List
+	char **netints_temp = NULL;
+
+	str_split(&netints_temp, run_command("ls /sys/class/net/"), '\n', (size_t *) &netints->count);
 
 	// Delete if NULL
 	if (*netints_temp == NULL){
@@ -463,11 +469,11 @@ void getNetworkIntUsage(struct net_int_info *netint, uint32_t interval){
 	char ***down_up = (char ***)calloc(2, sizeof(char **));
 
 	size_t temp_size = 0;
-	*down_up = str_split(run_command(input_cmd), ' ', &temp_size);
+	str_split(down_up, run_command(input_cmd), ' ', &temp_size);
 
 	sleep_ms(interval);
 
-	*(down_up + 1) = str_split(run_command(input_cmd), ' ', &temp_size);
+	str_split(down_up + 1, run_command(input_cmd), ' ', &temp_size);
 
 	free(input_cmd);
 

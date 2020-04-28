@@ -11,6 +11,7 @@
 
 #include "berkelib/macros_.h"
 
+#define DEBUG_RUT
 #define DEFAULT_GLOBAL_INTERVAL 1000 // 1000 is consistent minimum for cpu on physical machines, use higher for virtuals
 #define MAX_THREADS 64
 

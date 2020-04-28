@@ -12,7 +12,7 @@
 #include "macros_.h"
 
 size_t 		strptrlen				(char *str);
-char ** 	str_split				(char *str, const char delimiter, size_t *count_ptr);
+void 	    str_split				(char *** output, char *str, const char delimiter, size_t *count_ptr);
 void 		sleep_ms				(const uint32_t milliseconds);
 char * 		run_command				(char *command);
 uint16_t 	leftTrimTill			(char *strptr, const char ch);
