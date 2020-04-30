@@ -40,10 +40,14 @@ void getCpuTimings(uint32_t *cpu_total, uint32_t *cpu_idle, REQUIRE_WITH_SIZE(ch
 
 	const char delim[2] = " ";
 	uint8_t i = 0;
-	char* token;
+	char 	*token 	= NULL,
+			*temp 	= NULL;
 
-	token = strtok(readSearchGetFirstLine(PATH_CPU_STATS, PASS_WITH_SIZE_VAR(cpu_identifier), 1, PASS_WITH_SIZEOF(" ")), delim);
+	readSearchGetFirstLine(&temp, PATH_CPU_STATS, PASS_WITH_SIZE_VAR(cpu_identifier), 1, PASS_WITH_SIZEOF(" "));
+
+	token = strtok(temp, delim);
 	token = strtok(NULL, delim); // skip cpu_id
+	free(temp);
 
 	while ( token != NULL){
 
@@ -171,10 +175,14 @@ void *getCpuUsage(void *interval_ptr){
 uint64_t getFirstVarNumValue( const char* path, REQUIRE_WITH_SIZE(const char*, variable), const uint16_t variable_column_no ){
 	uint64_t output = 0;
 	const char delim[2] = " ";
-	char* token;
+	char 	*token 	= NULL,
+			*temp 	= NULL;
 
-	token = strtok(readSearchGetFirstLine( path, PASS_WITH_SIZE_VAR(variable), variable_column_no, PASS_WITH_SIZEOF(delim) ), delim);
+	readSearchGetFirstLine(&temp, path, PASS_WITH_SIZE_VAR(variable), variable_column_no, PASS_WITH_SIZEOF(delim));
+
+	token = strtok(temp, delim);
 	token = strtok(NULL, delim); // skip VARIABLE
+	
 
 	if (token) {
 		output = atoll(token) * KILOBYTE; // Convert to BYTE
@@ -185,36 +193,56 @@ uint64_t getFirstVarNumValue( const char* path, REQUIRE_WITH_SIZE(const char*, v
 #ifdef DEBUG_RUT
 	fprintf(STD, CYAN_BOLD("getFirstVarNumValue()")" | %s = %llu\n", variable, output);
 #endif
+	free(temp);
 	return output;
 }
 
 // Get the current OS disk
 char* getSystemDisk(char* os_partition_name, char* maj_no){
 	const char disk_min_no = '0';
+	
 	os_partition_name = NULL;
 	maj_no = NULL;
 	
-	char* output = NULL;
-	
-	os_partition_name = getColumn(
-		readSearchGetFirstLine(PATH_MOUNT_STATS, PASS_WITH_SIZEOF("/"), 5, PASS_WITH_SIZEOF(" ")),
+	char 	*output = NULL,
+			*temp 	= NULL;
+
+	readSearchGetFirstLine(&temp, PATH_MOUNT_STATS, PASS_WITH_SIZEOF("/"), 5, PASS_WITH_SIZEOF(" "));
+
+	getColumn(
+		&os_partition_name,
+		temp,
 		2,
 		PASS_WITH_SIZEOF(" ")
 	);
 
-	const uint16_t os_partition_name_size = leftTrimTill(os_partition_name, '/'); // Trim path
+	free(temp);
+	temp = NULL;
 
-	maj_no = getColumn(
-		readSearchGetFirstLine(PATH_DISK_STATS, PASS_WITH_SIZE_VAR(os_partition_name), 3, PASS_WITH_SIZEOF(" ")),
+	const uint16_t os_partition_name_size = leftTrimTill(os_partition_name, '/'); // Trim path
+	readSearchGetFirstLine(&temp, PATH_DISK_STATS, PASS_WITH_SIZE_VAR(os_partition_name), 3, PASS_WITH_SIZEOF(" "));
+	
+	getColumn(
+		&maj_no,
+		temp,
 		1,
 		PASS_WITH_SIZEOF(" ")
 	);
+	
+	free(temp);
+	temp = NULL;
 
-	output = getColumn(
-		readSearchGetFirstLine(PATH_DISK_STATS, PASS_WITH_SIZEOF(maj_no), 1, PASS_WITH_SIZEOF(" ")),
+	readSearchGetFirstLine(&temp, PATH_DISK_STATS, PASS_WITH_SIZEOF(maj_no), 1, PASS_WITH_SIZEOF(" "));
+
+	getColumn(
+		&output,
+		temp,
 		3,
 		PASS_WITH_SIZEOF(" ")
 	);
+
+	free(temp);
+	temp = NULL;
 
 #ifdef DEBUG_RUT
 	fprintf(STD, CYAN_BOLD("getSystemDisk()")" | output = %s | os_partition_name = %s | maj_no = %s\n", output, os_partition_name, maj_no);

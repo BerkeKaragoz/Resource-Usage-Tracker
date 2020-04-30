@@ -14,13 +14,5 @@ jobs:
     steps:
     - uses: actions/checkout@v2
 
-    - name:
-      run : |
-        echo ${{ github.repository }}
-        echo ${{ github.actor }}
-        echo ${{ github.event.pusher.name }}
-        echo ${{ github.event.pusher.email }}
-
-
     - name: Compile
       run: timeout 1m make -f ./Makefile

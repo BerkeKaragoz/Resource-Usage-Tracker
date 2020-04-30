@@ -26,6 +26,7 @@
 
 #define PR_VAR(T, X)	CYAN_BOLD(#X) ": %" T "\n"
 #define SOUT(T, X)		fprintf(STD, PR_VAR(T, X), X)
+#define TEST            SOUT("s", "--- SEGMENT ---");
 
 #define CONSOLE_RESET()     fprintf(STD, "\033[H\033[J")
 #define CONSOLE_GOTO(X, Y)  fprintf(STD, "\033[%d;%dH", Y, X)

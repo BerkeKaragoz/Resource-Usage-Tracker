@@ -20,7 +20,7 @@ void str_ptrlen(size_t *output, char *str){
 	*output = 0;
 	// Count STR's lenght
 	while(*tmp++) (*output)++;
-	return NULL;
+	return;
 }
 
 // Splits STR by the DELIMITER to string array and returns it with element COUNT
@@ -71,7 +71,7 @@ void str_split(char ***output, char *str, const char delimiter, size_t *count_pt
         *(*output + idx) = 0;
     }
 
-    return NULL;
+    return;
 }
 
 void sleep_ms(const uint32_t milliseconds) {
@@ -124,22 +124,30 @@ uint16_t leftTrimTill(char *strptr, const char ch){
 	return output_len - index - 1;
 }
 
-char* getColumn(char* str, const uint16_t column_no, REQUIRE_WITH_SIZE(const char*, delim)){
-	char* token;
+void getColumn(char **output, char* str, const uint16_t column_no, REQUIRE_WITH_SIZE(const char*, delim)){
 
-	token = strtok(str, delim);
+	char *gctemp = NULL;
+	
+	gctemp = strtok(str, delim);
 	for (uint16_t i = 1; i < column_no ; i++){
-		token = strtok(NULL, delim);
+		gctemp = strtok(NULL, delim);
 	}
 
-	return token;
+	size_t temp_size;
+	str_ptrlen(&temp_size, gctemp);
+	*output = realloc(*output, temp_size);
+
+	strcpy(*output, gctemp);
+	return;
 }
 
-// Read PATH
-// Search for SEARCH_KEY at COLUMN (#)
-// Where columns are seperated with DELIM
-// Return the line where it is found 
-char* readSearchGetFirstLine(const char* path, REQUIRE_WITH_SIZE(const char*, search_key), const uint16_t search_column, REQUIRE_WITH_SIZE(const char*, delim)){
+/*
+* 	Read PATH
+* 	Search for SEARCH_KEY at COLUMN (#)
+* 	Where columns are seperated with DELIM
+* 	Return the line where it is found 
+*/
+void readSearchGetFirstLine(char **output, const char* path, REQUIRE_WITH_SIZE(const char*, search_key), const uint16_t search_column, REQUIRE_WITH_SIZE(const char*, delim)){
 	const uint16_t buffer_size = KILOBYTE;
 
 	FILE *fp = fopen(path, "r");
@@ -147,16 +155,14 @@ char* readSearchGetFirstLine(const char* path, REQUIRE_WITH_SIZE(const char*, se
 		return strcat( RED_BOLD("[ERROR]") " Could not read the file: ", path);
 	}
 
-	char 	*output = NULL,
-			*line = NULL,
+	char	*line = NULL,
 			*token = NULL;
 
-	size_t output_size = 0;
-
-	output = (char *)malloc(output_size);
-	line = (char *)malloc(buffer_size);
+	size_t output_size = sizeof(char);
 	
-	*output = '\0';
+	*output = realloc(*output, output_size);
+	line = (char *)malloc(buffer_size);
+	**output = '\0';
 
 	size_t temp_size = 0;
 	uint16_t i;
@@ -164,25 +170,26 @@ char* readSearchGetFirstLine(const char* path, REQUIRE_WITH_SIZE(const char*, se
 		
 		str_ptrlen(&temp_size, line);
 		output_size += temp_size * sizeof(char);
-		output = realloc(output, output_size);
-		strcat(output, line);
-
+		*output = realloc(*output, output_size);
+		strcat(*output, line);
+		
 		token = strtok(line, delim);
 		for (i = 1; i < search_column; i++)
 			token = strtok(NULL, delim);
 		
 		if ( !strcmp(token, search_key) )
 		{
-
-			return output;
+			fclose(fp);
+			free(line);
+			return;
 		} else {
-			output = NULL;
+			*output = NULL;
 			output_size = 0;
-			output = realloc(output, output_size);
+			*output = realloc(*output, output_size);
 		}
 
 	}
 	fclose(fp);
 	free(line);
-	return output;
+	return;
 }

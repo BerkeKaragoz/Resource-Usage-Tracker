@@ -1,7 +1,7 @@
 CC = gcc
 
 
-CFLAGS  =  -g -Wall -pthread
+CFLAGS  =  -g -Wall -Wno-format -pthread
 LIBS 	= $(wildcard berkelib/*)
 DIR = ./build/
 TARGET = $(DIR)resource_usage_tracker
