@@ -20,4 +20,9 @@ jobs:
     - run: cat /proc/meminfo
 
     - name: Compile
-      run: timeout 1m make -f ./Makefile || true
+      run: | 
+        timeout 1m bash -c "make -f ./Makefile"
+        if [ $? -ne 124 ]
+        then
+        exit 5
+        fi
