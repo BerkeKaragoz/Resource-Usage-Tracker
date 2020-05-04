@@ -160,7 +160,7 @@ void readSearchGetFirstLine(char **output, const char* path, REQUIRE_WITH_SIZE(c
 			*token = NULL;
 
 	size_t output_size = sizeof(char);
-	
+TEST
 	*output = realloc(*output, output_size);
 	line = (char *)malloc(buffer_size);
 	**output = '\0';
