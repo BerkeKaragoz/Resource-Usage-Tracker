@@ -163,7 +163,7 @@ void readSearchGetFirstLine(char **output, const char* path, REQUIRE_WITH_SIZE(c
 
 	*output = realloc(*output, output_size);
 	line = (char *)malloc(buffer_size);
-	**output = '\0';
+	*output = '\0';
 
 	size_t temp_size = 0;
 	uint16_t i;
@@ -171,7 +171,7 @@ void readSearchGetFirstLine(char **output, const char* path, REQUIRE_WITH_SIZE(c
 		
 		str_ptrlen(&temp_size, line);
 		output_size += temp_size * sizeof(char);
-		*output = realloc(*output, output_size);
+		*output = realloc(*output, output_size);TEST
 		strcat(*output, line);
 		SOUT("s", *output);
 		token = strtok(line, delim);
