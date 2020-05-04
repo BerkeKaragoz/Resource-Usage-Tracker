@@ -206,7 +206,7 @@ char* getSystemDisk(char* os_partition_name, char* maj_no){
 	
 	char 	*output = NULL,
 			*temp 	= NULL;
-SOUT("s", temp); SOUT("s", os_partition_name); TEST
+
 	readSearchGetFirstLine(&temp, PATH_MOUNT_STATS, PASS_WITH_SIZEOF("/"), 5, PASS_WITH_SIZEOF(" "));
 
 	getColumn(
@@ -215,10 +215,10 @@ SOUT("s", temp); SOUT("s", os_partition_name); TEST
 		2,
 		PASS_WITH_SIZEOF(" ")
 	);
-SOUT("s", temp); SOUT("s", os_partition_name); TEST
+
 	free(temp);
 	temp = (char *) malloc (sizeof(char));
-SOUT("s", temp); SOUT("s", maj_no); TEST
+
 	const uint16_t os_partition_name_size = leftTrimTill(os_partition_name, '/'); // Trim path
 	readSearchGetFirstLine(&temp, PATH_DISK_STATS, PASS_WITH_SIZE_VAR(os_partition_name), 3, PASS_WITH_SIZEOF(" "));
 
@@ -228,10 +228,10 @@ SOUT("s", temp); SOUT("s", maj_no); TEST
 		1,
 		PASS_WITH_SIZEOF(" ")
 	);
-SOUT("s", temp); SOUT("s", maj_no); TEST
+
 	free(temp);
 	temp = (char *) malloc (sizeof(char));
-SOUT("s", temp); SOUT("s", output); TEST
+
 	readSearchGetFirstLine(&temp, PATH_DISK_STATS, PASS_WITH_SIZEOF(maj_no), 1, PASS_WITH_SIZEOF(" "));
 
 	getColumn(
@@ -240,7 +240,7 @@ SOUT("s", temp); SOUT("s", output); TEST
 		3,
 		PASS_WITH_SIZEOF(" ")
 	);
-SOUT("s", temp); SOUT("s", output); TEST
+
 	free(temp);
 
 #ifdef DEBUG_RUT

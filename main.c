@@ -92,15 +92,15 @@ int main (){
 *	Create
 */
 
-	//cpu_interval = DEFAULT_GLOBAL_INTERVAL;
-	//pthread_create(&cpu_thread, NULL, getCpuUsage, &cpu_interval); // CPU
+	cpu_interval = DEFAULT_GLOBAL_INTERVAL;
+	pthread_create(&cpu_thread, NULL, getCpuUsage, &cpu_interval); // CPU
 
 	for (uint16_t i = 0; i < disks.count; i++){ // Disks Reads/Writes
-		//pthread_create(disk_io_threads + i, NULL, call_getDiskReadWrite, disks.info + i);
+		pthread_create(disk_io_threads + i, NULL, call_getDiskReadWrite, disks.info + i);
 	}
 
 	for (uint16_t i = 0; i < netints.count; i++){ // Get Network Interface Infos
-		//pthread_create(net_int_threads + i, NULL, call_getNetworkIntUsage, netints.info + i);
+		pthread_create(net_int_threads + i, NULL, call_getNetworkIntUsage, netints.info + i);
 	}
 
 /*
@@ -108,14 +108,14 @@ int main (){
 */
 
 	for (uint16_t i = 0; i < disks.count; i++){ // Join Thread Disks
-		//pthread_join(*(disk_io_threads + i), NULL);
+		pthread_join(*(disk_io_threads + i), NULL);
 	}
 
 	for (uint16_t i = 0; i < netints.count; i++){ // Join Thread Network Interfaces
-		//pthread_join(*(net_int_threads + i), NULL);
+		pthread_join(*(net_int_threads + i), NULL);
 	}
 
-	//pthread_join(cpu_thread, NULL); // Join Thread CPU
+	pthread_join(cpu_thread, NULL); // Join Thread CPU
 
 /*
 *	Clean Up
