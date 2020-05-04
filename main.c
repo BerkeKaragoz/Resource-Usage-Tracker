@@ -42,7 +42,7 @@ int main (){
 #ifdef DEBUG_RUT
 	clock_t _begin = clock();
 #endif
-	CONSOLE_RESET();
+	//CONSOLE_RESET();
 
 	Program_State |= ps_Initialized;
 	Program_State |= ps_Running;

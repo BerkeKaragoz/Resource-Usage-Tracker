@@ -105,7 +105,7 @@ char* run_command(char* command){
 	return output;
 }
 
-uint16_t leftTrimTill(char *strptr, const char ch){
+size_t leftTrimTill(char *strptr, const char ch){
 	const char *ptr = NULL;
 	uint16_t index = 0;
 	do {
@@ -116,7 +116,7 @@ uint16_t leftTrimTill(char *strptr, const char ch){
 		}
 	} while(ptr != NULL);
 
-	uint16_t output_len;
+	size_t output_len;
 	str_ptrlen(&output_len, strptr);
 
 	memmove(strptr, strptr+index+1, output_len);
@@ -152,7 +152,8 @@ void readSearchGetFirstLine(char **output, const char* path, REQUIRE_WITH_SIZE(c
 
 	FILE *fp = fopen(path, "r");
 	if (fp == NULL){
-		return strcat( RED_BOLD("[ERROR]") " Could not read the file: ", path);
+		fprintf(STD, RED_BOLD("[ERROR]") " Could not read the file: %s", path);
+		return;
 	}
 
 	char	*line = NULL,
