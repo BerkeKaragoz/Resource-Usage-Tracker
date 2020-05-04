@@ -174,7 +174,7 @@ void readSearchGetFirstLine(char **output, const char* path, REQUIRE_WITH_SIZE(c
 		output_size += temp_size * sizeof(char);
 		*output = realloc(*output, output_size);
 		strcat(*output, line);
-SOUT("s", line); SOUT("s", output);
+SOUT("s", line); SOUT("s", *output);
 		token = strtok(line, delim);
 		for (i = 1; i < search_column; i++)
 			token = strtok(NULL, delim);
