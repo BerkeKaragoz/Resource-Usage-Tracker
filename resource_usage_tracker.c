@@ -216,8 +216,8 @@ SOUT("s", temp); SOUT("s", os_partition_name); TEST
 		PASS_WITH_SIZEOF(" ")
 	);
 SOUT("s", temp); SOUT("s", os_partition_name); TEST
-	temp = NULL;
-	temp = realloc(temp, 0);
+	free(temp);
+	temp = (char *) malloc (0);
 SOUT("s", temp); SOUT("s", maj_no); TEST
 	const uint16_t os_partition_name_size = leftTrimTill(os_partition_name, '/'); // Trim path
 	readSearchGetFirstLine(&temp, PATH_DISK_STATS, PASS_WITH_SIZE_VAR(os_partition_name), 3, PASS_WITH_SIZEOF(" "));
@@ -229,8 +229,8 @@ SOUT("s", temp); SOUT("s", maj_no); TEST
 		PASS_WITH_SIZEOF(" ")
 	);
 SOUT("s", temp); SOUT("s", maj_no); TEST
-	temp = NULL;	
-	temp = realloc(temp, 0);
+	free(temp);
+	temp = (char *) malloc (0);
 SOUT("s", temp); SOUT("s", output); TEST
 	readSearchGetFirstLine(&temp, PATH_DISK_STATS, PASS_WITH_SIZEOF(maj_no), 1, PASS_WITH_SIZEOF(" "));
 
@@ -241,7 +241,6 @@ SOUT("s", temp); SOUT("s", output); TEST
 		PASS_WITH_SIZEOF(" ")
 	);
 SOUT("s", temp); SOUT("s", output); TEST
-	temp = NULL;
 	free(temp);
 
 #ifdef DEBUG_RUT
