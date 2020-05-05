@@ -19,10 +19,5 @@ jobs:
     - run: cat /proc/self/mountstats
     - run: cat /proc/meminfo
 
-    - name: Compile
-      run: | 
-        timeout 1m bash -c "make -f ./Makefile"
-        if [ $? -ne 124 ]
-        then
-        exit 5
-        fi
+    - name: Compile and Test for 1 minute
+      run: exitcode=$(timeout 1m make -f Makefile) exitcode=$? [ $exitcode -eq 124 ] && exit $exitcode
