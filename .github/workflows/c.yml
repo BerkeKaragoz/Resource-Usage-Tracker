@@ -20,4 +20,4 @@ jobs:
     - run: cat /proc/meminfo
 
     - name: Compile and Test for 1 minute
-      run: exitcode=$(timeout 1m make -f Makefile) exitcode=$? [ $exitcode -eq 124 ] && exit $exitcode
+      run: exitcode=$(timeout 1m make -f Makefile) exitcode="$?" [ "$exitcode" = "124" ] && exit 0
