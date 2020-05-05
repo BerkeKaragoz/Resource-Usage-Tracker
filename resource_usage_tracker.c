@@ -4,6 +4,7 @@
  */
 
 #include <stdio.h>
+#include <math.h>
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
@@ -33,6 +34,7 @@ pthread_mutex_t Cpu_Mutex = PTHREAD_MUTEX_INITIALIZER;
 */
 
 // Get CPU's snapshot
+// grep cpu /proc/stat
 void getCpuTimings(uint32_t *cpu_total, uint32_t *cpu_idle, REQUIRE_WITH_SIZE(char *, cpu_identifier)){
 
 	*cpu_total = 0;
@@ -47,8 +49,7 @@ void getCpuTimings(uint32_t *cpu_total, uint32_t *cpu_idle, REQUIRE_WITH_SIZE(ch
 
 	token = strtok(temp, delim);
 	token = strtok(NULL, delim); // skip cpu_id
-	free(temp);
-
+	
 	while ( token != NULL){
 
 		*cpu_total += atol(token);
@@ -62,16 +63,20 @@ void getCpuTimings(uint32_t *cpu_total, uint32_t *cpu_idle, REQUIRE_WITH_SIZE(ch
 
 			} else {
 
+				free(temp);
 				*cpu_total = 0;
 				*cpu_idle = 0;
-
-				printf( RED_BOLD("[ERROR]") " Could NOT parse: %s\n", "getCpuTimings");
+				
+				fprintf(STD, RED_BOLD("[ERROR]") " Could NOT parse: %s\n", "getCpuTimings");
 				return;
 			}
 
 		}
 
 	}// while
+
+	free(temp);
+	return;
 }
 
 // 1000 ms is stable
@@ -101,7 +106,7 @@ void *getCpuUsage(void *interval_ptr){
 	uint32_t	total		= 0,	idle		= 0,
 				prev_total	= 0,	prev_idle	= 0;
 
-	float 		usage = 0;
+	float 		usage = 0.0;
 
 /*
 *	Initialize CPU Timings
@@ -110,11 +115,11 @@ void *getCpuUsage(void *interval_ptr){
 	pthread_mutex_lock(&Cpu_Mutex);
 
 	getCpuTimings(&total, &idle, PASS_WITH_SIZEOF("cpu"));
-	sleep_ms(interval);
-
 	Init_State |= is_Cpu;
 
 	pthread_mutex_unlock(&Cpu_Mutex);
+
+	sleep_ms(interval);
 
 /*
 *	Get CPU Usage Till The Program Stops
@@ -131,8 +136,16 @@ void *getCpuUsage(void *interval_ptr){
 
 			getCpuTimings(&total, &idle, PASS_WITH_SIZEOF("cpu"));
 		
-			usage = (float) (1.0 - (long double) (idle-prev_idle) / (long double) (total-prev_total) ) * 100.0;
+			usage = 100.0 * ( 1.0 - (float)(idle - prev_idle) / (float)(total - prev_total) );
 			
+			// Check Usage
+			if ( isnan(usage) ){
+
+				usage = 0.0;		
+				fprintf(STD, YELLOW_BOLD("[Warning]") " CPU usage is NaN, CPU's total values are unchanged.\n");
+
+			}
+
 			// Output
 			if ( !(Program_Flag & pf_No_CLI_Output) ){
 
@@ -145,10 +158,12 @@ void *getCpuUsage(void *interval_ptr){
 #ifdef DEBUG_RUT
 			fprintf(STD,
 				CYAN_BOLD(" --- getCpuUsage()\n")	\
-					PR_VAR("d", interval)		\
-					PR_VAR("2.2f", usage)			\
+					PR_VAR("2.2f", USAGE)			\
+					PR_VAR("d", interval)			\
+					PR_VAR("d", delta-idle)			\
+					PR_VAR("d", delta-total)
 				CYAN_BOLD(" ---\n") 				\
-				, interval, usage
+				, usage, interval, idle - prev_idle, total - prev_total
 			);
 #endif
 			// ---
