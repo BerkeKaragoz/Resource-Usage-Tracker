@@ -16,18 +16,6 @@
 #include <time.h>
 #endif
 
-// Globals
-uint32_t 	Disk_Interval 	= DEFAULT_GLOBAL_INTERVAL,
-			NetInt_Interval = DEFAULT_GLOBAL_INTERVAL;
-
-void *call_getDiskReadWrite(void* disk_info_ptr){
-
-	struct disk_info *dip = (struct disk_info *) disk_info_ptr;
-	
-	getDiskReadWrite(Disk_Interval, PASS_WITH_SIZEOF(dip->name), &(dip->read_per_sec), &(dip->write_per_sec));
-
-	return NULL;
-}
 
 void *call_getNetworkIntUsage(void* net_int_info_ptr){
 
@@ -41,8 +29,9 @@ void *call_getNetworkIntUsage(void* net_int_info_ptr){
 int main (){
 #ifdef DEBUG_RUT
 	clock_t _begin = clock();
+#else
+	CONSOLE_RESET();
 #endif
-	//CONSOLE_RESET();
 
 	Program_State |= ps_Initialized;
 	Program_State |= ps_Running;
@@ -75,11 +64,6 @@ int main (){
 		exit(EXIT_FAILURE);
 	}
 	
-	if (disks.count > MAX_THREADS)
-	{
-		fprintf(STD, RED_BOLD("[ERROR]")" Disk count exceeded maximum amount of threads!\n");
-		exit(EXIT_FAILURE);
-	}
 
 /*
 *	Allocate
@@ -96,7 +80,7 @@ int main (){
 	pthread_create(&cpu_thread, NULL, getCpuUsage, &cpu_interval); // CPU
 
 	for (uint16_t i = 0; i < disks.count; i++){ // Disks Reads/Writes
-		pthread_create(disk_io_threads + i, NULL, call_getDiskReadWrite, disks.info + i);
+		pthread_create(disk_io_threads + i, NULL, getDiskReadWrite, disks.info + i);
 	}
 
 	for (uint16_t i = 0; i < netints.count; i++){ // Get Network Interface Infos

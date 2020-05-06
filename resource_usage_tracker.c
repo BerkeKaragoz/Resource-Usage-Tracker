@@ -20,14 +20,19 @@
 *	Globals
 */
 #ifdef DEBUG_RUT
-extern enum program_flags			Program_Flag	= pf_No_CLI_Output;
+enum program_flags			Program_Flag	= pf_No_CLI_Output;
 #else
-extern enum program_flags			Program_Flag	= pf_None;
+enum program_flags			Program_Flag	= pf_None;
 #endif
-extern enum program_states 			Program_State 	= ps_Ready;
-extern enum initialization_states 	Init_State 		= is_None;
+enum program_states 		Program_State 	= ps_Ready;
+enum initialization_states 	Init_State 		= is_None;
 
-pthread_mutex_t Cpu_Mutex = PTHREAD_MUTEX_INITIALIZER;
+uint32_t	Disk_Interval	= DEFAULT_GLOBAL_INTERVAL,
+			NetInt_Interval = DEFAULT_GLOBAL_INTERVAL;
+
+pthread_mutex_t Cpu_Mutex 		= PTHREAD_MUTEX_INITIALIZER,
+				Disk_io_Mutex 	= PTHREAD_MUTEX_INITIALIZER;
+
 
 /*
 *	Functions
@@ -138,7 +143,7 @@ void *getCpuUsage(void *interval_ptr){
 		
 			usage = 100.0 * ( 1.0 - (float)(idle - prev_idle) / (float)(total - prev_total) );
 			
-			// Check Usage
+			// Check Usage if it is corrupted
 			if ( isnan(usage) ){
 
 				usage = 0.0;		
@@ -149,8 +154,8 @@ void *getCpuUsage(void *interval_ptr){
 			// Output
 			if ( !(Program_Flag & pf_No_CLI_Output) ){
 
-				CONSOLE_GOTO(0, 0);
-				fprintf(STD, "CPU Usage: %2.2f%%\n", usage);
+				CONSOLE_GOTO(0, 1);
+				fprintf(STD, "CPU Usage: %7.2f%%\n", usage);
 				fflush(STD);
 
 			}
@@ -166,15 +171,13 @@ void *getCpuUsage(void *interval_ptr){
 				, usage, interval, idle - prev_idle, total - prev_total
 			);
 #endif
-			// ---
+			// tuptuO
 
 			pthread_mutex_unlock(&Cpu_Mutex);
 
 			sleep_ms(interval);
 
 		}
-
-		return NULL;
 
 	} else {
 
@@ -266,45 +269,103 @@ char* getSystemDisk(char* os_partition_name, char* maj_no){
 }
 
 // $ awk '$3 == "<DISK_NAME>" {print $6"\t"$10}' /proc/diskstats
-void getDiskReadWrite(const uint32_t ms_interval, REQUIRE_WITH_SIZE(char *, disk_name), size_t *bread_sec_out, size_t *bwrite_sec_out){
+void *getDiskReadWrite(void *disk_info_ptr){
+
+/*
+*	Parameter conversion
+*/
+
+	struct disk_info *dip = (struct disk_info *) disk_info_ptr;
+
+/*
+*	Defining Variables
+*/
+
 	char *input_cmd = (char *)malloc(
-		disk_name_size * sizeof(char) + sizeof("awk '$3 == \"\" {print $6\"\\t\"$10}' /proc/diskstats")
+		sizeof(dip->name) * sizeof(char) + sizeof("awk '$3 == \"\" {print $6\"\\t\"$10}' /proc/diskstats")
 	);
 
 	strcpy(input_cmd, "awk '$3 == \"");
-	strcat(input_cmd, disk_name);
+	strcat(input_cmd, dip->name);
 	strcat(input_cmd, "\" {print $6\"\\t\"$10}' /proc/diskstats");
 
 	size_t temp_size = 0;
-	char ***read_write 	= ( char *** ) 	malloc ( sizeof(char **) * 2 );
+	char ***read_write 	= ( char *** ) malloc ( sizeof(char **) * 2 );
+
+/*
+*	Initialize I/O Values
+*/
+
+	pthread_mutex_lock(&Disk_io_Mutex);
 	
 	str_split(read_write, run_command(input_cmd), '\t', &temp_size);
+	Init_State |= is_Disk_io;
 
-	sleep_ms(ms_interval);
+	pthread_mutex_unlock(&Disk_io_Mutex);
 
-	str_split((read_write + 1), run_command(input_cmd), '\t', &temp_size);
-	free(input_cmd);
+	sleep_ms(Disk_Interval);
 
-	*bread_sec_out = atoll(read_write[1][0]) - atoll(read_write[0][0]); // BR - AR
-	*bwrite_sec_out = atoll(read_write[1][1]) - atoll(read_write[0][1]); // BW - AW
+/*
+*	Get Disk I/O Till The Program Stops
+*/
+
+	if( Init_State & is_Disk_io ){
+
+		while( Program_State & ps_Running ){
+
+			pthread_mutex_lock(&Disk_io_Mutex);
+		
+			*(read_write + 1) = *read_write;
+
+			str_split(read_write, run_command(input_cmd), '\t', &temp_size);
+
+			dip -> read_bytes  = atoll(read_write[0][0]) - atoll(read_write[1][0]); // AR - BR
+			dip -> written_bytes = atoll(read_write[0][1]) - atoll(read_write[1][1]); // AW - BW
+
+			// Output
+			if ( !(Program_Flag & pf_No_CLI_Output) ){
+
+				CONSOLE_GOTO(0, 2);
+				fprintf(STD, "Disk: %-7s\tRead: %7Lu/(bytes per %dms)\tWrite: %7Lu/(bytes per %dms)\n", dip->name, dip->read_bytes, Disk_Interval, dip->written_bytes, Disk_Interval);	
+				fflush(STD);
+
+			}
 
 #ifdef DEBUG_RUT
 	fprintf(STD,
 		CYAN_BOLD(" --- getDiskReadWrite(")"%s"CYAN_BOLD(") ---\n") \
-			PR_VAR("d", disk_name_size) 	\
-			PR_VAR("d", ms_interval)		\
+			PR_VAR("d", Disk_Interval)		\
 			PR_VAR("s", read_write[0][0])	\
 			PR_VAR("s", read_write[0][1])	\
 			PR_VAR("s", read_write[1][0])	\
 			PR_VAR("s", read_write[1][1])	\
-			PR_VAR("d", *bread_sec_out)		\
-			PR_VAR("d", *bwrite_sec_out)	\
+			PR_VAR("d", dip->read_bytes)		\
+			PR_VAR("d", dip->written_bytes)	\
 		CYAN_BOLD(" ---\n") 				\
-		, disk_name, disk_name_size, ms_interval, read_write[0][0], read_write[0][1], read_write[1][0], read_write[1][1], *bread_sec_out, *bwrite_sec_out
+		, dip->name, Disk_Interval, read_write[0][0], read_write[0][1], read_write[1][0], read_write[1][1], dip->read_bytes, dip->written_bytes
 	);
-
 #endif
+			// tuptuO
+
+			pthread_mutex_unlock(&Disk_io_Mutex);
+
+			sleep_ms(Disk_Interval);
+
+		}
+
+	} else {
+
+		free(input_cmd);
+		free(read_write);
+
+		fprintf(STD, RED_BOLD("[ERROR]") " Disk I/O values are not initialized.\n");
+		return NULL;
+
+	}
+
+	free(input_cmd);
 	free(read_write);
+	return NULL;
 }
 
 // Get all disks from PATH_DISK_STATS

@@ -45,8 +45,8 @@ enum initialization_states{
 
 struct disk_info{
 	char *name;
-	size_t read_per_sec;
-	size_t write_per_sec;
+	size_t read_bytes;
+	size_t written_bytes;
 };
 
 typedef struct disks{
@@ -79,14 +79,24 @@ typedef struct network_interfaces{
 	uint16_t count;
 }net_ints_t;
 
+// Globals
+extern uint32_t Disk_Interval,
+				NetInt_Interval;
+
+extern enum program_flags			Program_Flag;
+extern enum program_states 			Program_State;
+extern enum initialization_states 	Init_State;
+
+// Functions
 void 		getCpuTimings			(uint32_t *cpu_total, uint32_t *cpu_idle, REQUIRE_WITH_SIZE(char *, cpu_identifier));
 void * 		getCpuUsage				(void *ms_interval);
 uint64_t 	getFirstVarNumValue		(const char* path, REQUIRE_WITH_SIZE(const char*, variable), const uint16_t variable_column_no );
 char * 		getSystemDisk			(char* os_partition_name, char* maj_no);
-void 		getDiskReadWrite		(const uint32_t ms_interval, REQUIRE_WITH_SIZE(char *, disk_name), size_t *bread_sec_out, size_t *bwrite_sec_out);
+void *		getDiskReadWrite		(void *disk_info_ptr);
 void 		getAllDisks				(disks_t *disks);
 void 		getPhysicalFilesystems	(filesystems_t *filesystems);
 void 		getNetworkInterfaces	(net_ints_t *netints);
 void 		getNetworkIntUsage		(struct net_int_info *netint, uint32_t interval);
+
 
 #endif
