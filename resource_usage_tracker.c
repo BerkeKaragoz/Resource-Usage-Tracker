@@ -4,11 +4,11 @@
  */
 
 #include <stdio.h>
-#include <math.h>
+#include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
+#include <math.h>
 #include <time.h>
-#include <stdint.h>
 #include <pthread.h>
 #include <linux/if_arp.h>
 
@@ -27,8 +27,8 @@ enum program_flags			Program_Flag	= pf_None;
 enum program_states 		Program_State 	= ps_Ready;
 enum initialization_states 	Init_State 		= is_None;
 
-uint32_t	Disk_Interval	= DEFAULT_GLOBAL_INTERVAL,
-			NetInt_Interval = DEFAULT_GLOBAL_INTERVAL;
+	uint32_t	Disk_Interval	= DEFAULT_GLOBAL_INTERVAL,
+				NetInt_Interval = DEFAULT_GLOBAL_INTERVAL;
 
 pthread_mutex_t Cpu_Mutex 		= PTHREAD_MUTEX_INITIALIZER,
 				Disk_io_Mutex 	= PTHREAD_MUTEX_INITIALIZER;
@@ -37,6 +37,28 @@ pthread_mutex_t Cpu_Mutex 		= PTHREAD_MUTEX_INITIALIZER,
 /*
 *	Functions
 */
+
+void *timeLimit (void *thread_container){
+
+	thread_container_t tc = *((thread_container_t *) thread_container);
+
+	uint32_t timelimit = DEFAULT_GLOBAL_INTERVAL*3;
+SOUT("Lu", (int64_t *) tc.parameter);
+	if ( (int64_t *) tc.parameter >= 0 ){
+
+		timelimit = *((uint32_t *) tc.parameter);
+
+	} else {
+
+		fprintf(STD, RED_BOLD("[ERROR] Timelimit is lower than 0. It is set to %d.\n"), DEFAULT_GLOBAL_INTERVAL*3);
+
+	}
+
+	sleep_ms(timelimit);
+
+	fprintf(STD, "Timelimit is over.\nSuccess!\n");
+	exit(EXIT_SUCCESS); //TODO cleanup
+}
 
 // Get CPU's snapshot
 // grep cpu /proc/stat
@@ -86,17 +108,19 @@ void getCpuTimings(uint32_t *cpu_total, uint32_t *cpu_idle, REQUIRE_WITH_SIZE(ch
 
 // 1000 ms is stable
 // cat <(grep cpu /proc/stat) <(sleep 0.1 && grep cpu /proc/stat) | awk -v RS="" '{printf "%.1f", ($13-$2+$15-$4)*100/($13-$2+$15-$4+$16-$5)}
-void *getCpuUsage(void *interval_ptr){
+void *getCpuUsage(void *thread_container){
 
 /*
 *	Test The Parameter
 */
 
-	uint32_t interval = DEFAULT_GLOBAL_INTERVAL;
-	
-	if ( (int64_t *) interval_ptr >= 0 ){
+	thread_container_t tc = *((thread_container_t *) thread_container);
 
-		interval = *((uint32_t *) interval_ptr);
+	uint32_t interval = DEFAULT_GLOBAL_INTERVAL;
+
+	if ( (int64_t *) tc.parameter >= 0 ){
+
+		interval = *((uint32_t *) tc.parameter);
 
 	} else {
 
@@ -154,7 +178,7 @@ void *getCpuUsage(void *interval_ptr){
 			// Output
 			if ( !(Program_Flag & pf_No_CLI_Output) ){
 
-				CONSOLE_GOTO(0, 1);
+				CONSOLE_GOTO(0, tc.id + 1);
 				fprintf(STD, "CPU Usage: %7.2f%%\n", usage);
 				fflush(STD);
 

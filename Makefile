@@ -3,8 +3,9 @@ CC = gcc
 
 CFLAGS  =  -g -Wall -Wno-format -pthread
 LIBS 	= $(wildcard berkelib/*)
-DIR = ./build/
-TARGET = $(DIR)resource_usage_tracker
+DIR 	= ./build/
+ARGS 	=
+TARGET 	= $(DIR)resource_usage_tracker
 SOURCES = $(wildcard *.c)
 HEADERS = $(wildcard *.h)
 OBJECTS = $(SOURCES:.c=.o)
@@ -22,7 +23,7 @@ $(TARGET): $(OBJECTS)
 		$(CC) $(OBJECTS) $(CFLAGS) $(LIBS) $(RELEASEFLAGS) -o $(TARGET) 
 
 run:
-	$(TARGET)
+	$(TARGET) $(ARGS)
 
 clean:
 		$(RM) $(OBJECTS)

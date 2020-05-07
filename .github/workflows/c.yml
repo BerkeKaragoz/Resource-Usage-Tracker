@@ -19,6 +19,9 @@ jobs:
     - run: cat /proc/self/mountstats
     - run: cat /proc/meminfo
 
-    - name: Compile and Run
-      run: make -f ./Makefile
+    - name: Compile and Run for Half a Minute
+      run: make -f ./Makefile ARGS="-t 30000"
+
+    - name: Compile and Run for 15 Minutes
+      run: make -f ./Makefile ARGS="-t 900000"
 

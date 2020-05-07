@@ -43,6 +43,12 @@ enum initialization_states{
 	is_Filesystems 			= 0b10000
 }Init_State;
 
+typedef struct thread_container{
+	pthread_t *thread;
+	uint16_t id;
+	void *parameter;
+}thread_container_t;
+
 struct disk_info{
 	char *name;
 	size_t read_bytes;
@@ -87,9 +93,10 @@ extern enum program_flags			Program_Flag;
 extern enum program_states 			Program_State;
 extern enum initialization_states 	Init_State;
 
+
 // Functions
 void 		getCpuTimings			(uint32_t *cpu_total, uint32_t *cpu_idle, REQUIRE_WITH_SIZE(char *, cpu_identifier));
-void * 		getCpuUsage				(void *ms_interval);
+void * 		getCpuUsage				(void *thread_container);
 uint64_t 	getFirstVarNumValue		(const char* path, REQUIRE_WITH_SIZE(const char*, variable), const uint16_t variable_column_no );
 char * 		getSystemDisk			(char* os_partition_name, char* maj_no);
 void *		getDiskReadWrite		(void *disk_info_ptr);
@@ -97,6 +104,7 @@ void 		getAllDisks				(disks_t *disks);
 void 		getPhysicalFilesystems	(filesystems_t *filesystems);
 void 		getNetworkInterfaces	(net_ints_t *netints);
 void 		getNetworkIntUsage		(struct net_int_info *netint, uint32_t interval);
+void *		timeLimit				(void *thread_container);
 
 
 #endif

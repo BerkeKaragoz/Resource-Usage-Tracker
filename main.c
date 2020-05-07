@@ -26,7 +26,7 @@ void *call_getNetworkIntUsage(void* net_int_info_ptr){
 	return NULL;
 }
 
-int main (){
+int main (int argc, char * const argv[]){
 #ifdef DEBUG_RUT
 	clock_t _begin = clock();
 #else
@@ -45,6 +45,35 @@ int main (){
 	net_ints_t netints;
 
 	uint32_t cpu_interval;
+
+	extern char* optarg;
+	int32_t opt;
+	#define _ARGS_ "t"
+	while ((opt = getopt(argc, argv, _ARGS_":T")) != -1){
+
+		switch (opt) {
+			case 't':
+				SOUT("s", "ARGSSSSSS");
+
+				int64_t timelimit_ms = 3000;
+				pthread_t timelimit_thread;
+				thread_container_t tlc;
+				
+				timelimit_ms = atol(optarg); //TODO validation
+
+				tlc.id = UINT16_MAX;
+				tlc.thread = &timelimit_thread;
+				tlc.parameter = &timelimit_ms;
+
+				pthread_create(tlc.thread, NULL, timeLimit, &tlc);
+
+			break;
+
+			default:				
+				fprintf(STD, "Usage: %s [-" _ARGS_ "] [value]\n", argv[0]);
+				exit(EXIT_FAILURE);
+		}//switch
+	}
 
 	//RAM
 	getFirstVarNumValue(PATH_MEM_INFO, PASS_WITH_SIZEOF("Active:"), 0);
@@ -76,8 +105,14 @@ int main (){
 *	Create
 */
 
-	cpu_interval = DEFAULT_GLOBAL_INTERVAL;
-	pthread_create(&cpu_thread, NULL, getCpuUsage, &cpu_interval); // CPU
+	cpu_interval = 1234;
+	thread_container_t Cpu_Thread;
+	Cpu_Thread.id = 0;
+	Cpu_Thread.thread = &cpu_thread;
+	Cpu_Thread.parameter = &cpu_interval;
+
+
+	pthread_create(Cpu_Thread.thread, NULL, getCpuUsage, &Cpu_Thread); // CPU
 
 	for (uint16_t i = 0; i < disks.count; i++){ // Disks Reads/Writes
 		pthread_create(disk_io_threads + i, NULL, getDiskReadWrite, disks.info + i);
@@ -99,7 +134,7 @@ int main (){
 		pthread_join(*(net_int_threads + i), NULL);
 	}
 
-	pthread_join(cpu_thread, NULL); // Join Thread CPU
+	pthread_join(Cpu_Thread.thread, NULL); // Join Thread CPU
 
 /*
 *	Clean Up
