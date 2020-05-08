@@ -11,7 +11,7 @@
 
 #include "berkelib/macros_.h"
 
-#define DEBUG_RUT
+//#define DEBUG_RUT
 #define DEFAULT_GLOBAL_INTERVAL 1000 // 1000 is consistent minimum for cpu on physical machines, use higher for virtuals
 #define MAX_THREADS 64
 
@@ -44,7 +44,7 @@ enum initialization_states{
 }Init_State;
 
 typedef struct thread_container{
-	pthread_t *thread;
+	pthread_t thread;
 	uint16_t id;
 	void *parameter;
 }thread_container_t;
@@ -86,6 +86,8 @@ typedef struct network_interfaces{
 }net_ints_t;
 
 // Globals
+extern uint16_t Last_Thread_Id;
+
 extern uint32_t Disk_Interval,
 				NetInt_Interval;
 
@@ -95,16 +97,19 @@ extern enum initialization_states 	Init_State;
 
 
 // Functions
-void 		getCpuTimings			(uint32_t *cpu_total, uint32_t *cpu_idle, REQUIRE_WITH_SIZE(char *, cpu_identifier));
+void *		timeLimit				(void *thread_container);
+
 void * 		getCpuUsage				(void *thread_container);
+void *		getDiskReadWrite		(void *thread_container);
+void *		getNetworkIntUsage		(void *thread_container);
+
+void 		getCpuTimings			(uint32_t *cpu_total, uint32_t *cpu_idle, REQUIRE_WITH_SIZE(char *, cpu_identifier));
+void 		getNetworkInterfaces	(net_ints_t *netints);
+
 uint64_t 	getFirstVarNumValue		(const char* path, REQUIRE_WITH_SIZE(const char*, variable), const uint16_t variable_column_no );
 char * 		getSystemDisk			(char* os_partition_name, char* maj_no);
-void *		getDiskReadWrite		(void *disk_info_ptr);
 void 		getAllDisks				(disks_t *disks);
 void 		getPhysicalFilesystems	(filesystems_t *filesystems);
-void 		getNetworkInterfaces	(net_ints_t *netints);
-void 		getNetworkIntUsage		(struct net_int_info *netint, uint32_t interval);
-void *		timeLimit				(void *thread_container);
 
 
 #endif

@@ -16,15 +16,8 @@
 #include <time.h>
 #endif
 
+uint16_t Last_Thread_Id = 0;
 
-void *call_getNetworkIntUsage(void* net_int_info_ptr){
-
-	struct net_int_info *niip = (struct net_int_info *) net_int_info_ptr;
-	
-	getNetworkIntUsage(niip, NetInt_Interval);
-
-	return NULL;
-}
 
 int main (int argc, char * const argv[]){
 #ifdef DEBUG_RUT
@@ -36,9 +29,12 @@ int main (int argc, char * const argv[]){
 	Program_State |= ps_Initialized;
 	Program_State |= ps_Running;
 
-	pthread_t 	*disk_io_threads,
-				*net_int_threads,
-				cpu_thread;
+	thread_container_t  *disk_io_tcs,
+						*net_int_tcs,
+						cpu_tc;
+
+	pthread_t 	
+				*net_int_threads;
 
 	disks_t disks;
 	filesystems_t filesystems;
@@ -53,20 +49,17 @@ int main (int argc, char * const argv[]){
 
 		switch (opt) {
 			case 't':
-				SOUT("s", "ARGSSSSSS");
+				{
+					int64_t timelimit_ms = INT64_MIN;
+					thread_container_t tlc;
 
-				int64_t timelimit_ms = 3000;
-				pthread_t timelimit_thread;
-				thread_container_t tlc;
-				
-				timelimit_ms = atol(optarg); //TODO validation
+					timelimit_ms = atol(optarg); //TODO validation
 
-				tlc.id = UINT16_MAX;
-				tlc.thread = &timelimit_thread;
-				tlc.parameter = &timelimit_ms;
+					tlc.id = UINT16_MAX;
+					tlc.parameter = &timelimit_ms;
 
-				pthread_create(tlc.thread, NULL, timeLimit, &tlc);
-
+					pthread_create(&tlc.thread, NULL, timeLimit, &tlc);
+				}
 			break;
 
 			default:				
@@ -98,28 +91,31 @@ int main (int argc, char * const argv[]){
 *	Allocate
 */
 
-	disk_io_threads = malloc(disks.count * sizeof(pthread_t)); 
-	net_int_threads = malloc(netints.count * sizeof(pthread_t)); 
+	disk_io_tcs = malloc(disks.count   * sizeof(thread_container_t));//TODO free
+	net_int_tcs = malloc(netints.count * sizeof(thread_container_t));//TODO free
 
 /*
 *	Create
 */
 
-	cpu_interval = 1234;
-	thread_container_t Cpu_Thread;
-	Cpu_Thread.id = 0;
-	Cpu_Thread.thread = &cpu_thread;
-	Cpu_Thread.parameter = &cpu_interval;
+	cpu_interval = DEFAULT_GLOBAL_INTERVAL;
+	cpu_tc.id = Last_Thread_Id++;
+	cpu_tc.parameter = &cpu_interval;
 
-
-	pthread_create(Cpu_Thread.thread, NULL, getCpuUsage, &Cpu_Thread); // CPU
+	pthread_create(&cpu_tc.thread, NULL, getCpuUsage, &cpu_tc); // CPU
 
 	for (uint16_t i = 0; i < disks.count; i++){ // Disks Reads/Writes
-		pthread_create(disk_io_threads + i, NULL, getDiskReadWrite, disks.info + i);
+		(*(disk_io_tcs + i)).id = Last_Thread_Id++;
+		(disk_io_tcs + i) -> parameter = disks.info + i;
+
+		pthread_create( &(disk_io_tcs + i)->thread, NULL, getDiskReadWrite, disk_io_tcs + i );
 	}
 
 	for (uint16_t i = 0; i < netints.count; i++){ // Get Network Interface Infos
-		pthread_create(net_int_threads + i, NULL, call_getNetworkIntUsage, netints.info + i);
+		(*(net_int_tcs + i)).id = Last_Thread_Id++;
+		(net_int_tcs + i) -> parameter = netints.info + i;
+
+		pthread_create( &(net_int_tcs + i)->thread , NULL, getNetworkIntUsage, net_int_tcs + i);
 	}
 
 /*
@@ -127,22 +123,20 @@ int main (int argc, char * const argv[]){
 */
 
 	for (uint16_t i = 0; i < disks.count; i++){ // Join Thread Disks
-		pthread_join(*(disk_io_threads + i), NULL);
+		pthread_join( (disk_io_tcs + i)->thread, NULL );
 	}
 
 	for (uint16_t i = 0; i < netints.count; i++){ // Join Thread Network Interfaces
-		pthread_join(*(net_int_threads + i), NULL);
+		pthread_join( (net_int_tcs + i)->thread, NULL );
 	}
 
-	pthread_join(Cpu_Thread.thread, NULL); // Join Thread CPU
+	pthread_join(cpu_tc.thread, NULL); // Join Thread CPU
 
 /*
 *	Clean Up
 */
 
 	pthread_exit(NULL);
-	free(disk_io_threads);
-	free(net_int_threads);
 
 	Program_State = ps_Stopped;
 

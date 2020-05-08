@@ -27,11 +27,12 @@ enum program_flags			Program_Flag	= pf_None;
 enum program_states 		Program_State 	= ps_Ready;
 enum initialization_states 	Init_State 		= is_None;
 
-	uint32_t	Disk_Interval	= DEFAULT_GLOBAL_INTERVAL,
+uint32_t		Disk_Interval	= DEFAULT_GLOBAL_INTERVAL,
 				NetInt_Interval = DEFAULT_GLOBAL_INTERVAL;
 
 pthread_mutex_t Cpu_Mutex 		= PTHREAD_MUTEX_INITIALIZER,
-				Disk_io_Mutex 	= PTHREAD_MUTEX_INITIALIZER;
+				Disk_io_Mutex 	= PTHREAD_MUTEX_INITIALIZER,
+				Net_int_Mutex	= PTHREAD_MUTEX_INITIALIZER;
 
 
 /*
@@ -43,7 +44,7 @@ void *timeLimit (void *thread_container){
 	thread_container_t tc = *((thread_container_t *) thread_container);
 
 	uint32_t timelimit = DEFAULT_GLOBAL_INTERVAL*3;
-SOUT("Lu", (int64_t *) tc.parameter);
+
 	if ( (int64_t *) tc.parameter >= 0 ){
 
 		timelimit = *((uint32_t *) tc.parameter);
@@ -114,13 +115,13 @@ void *getCpuUsage(void *thread_container){
 *	Test The Parameter
 */
 
-	thread_container_t tc = *((thread_container_t *) thread_container);
+	thread_container_t *tc = (thread_container_t *) thread_container;
 
 	uint32_t interval = DEFAULT_GLOBAL_INTERVAL;
 
-	if ( (int64_t *) tc.parameter >= 0 ){
+	if ( (int64_t *) tc->parameter >= 0 ){
 
-		interval = *((uint32_t *) tc.parameter);
+		interval = *((uint32_t *) tc->parameter);
 
 	} else {
 
@@ -178,8 +179,9 @@ void *getCpuUsage(void *thread_container){
 			// Output
 			if ( !(Program_Flag & pf_No_CLI_Output) ){
 
-				CONSOLE_GOTO(0, tc.id + 1);
-				fprintf(STD, "CPU Usage: %7.2f%%\n", usage);
+				CONSOLE_GOTO(0, tc->id + 1);
+				fprintf(STD, " CPU Usage: %7.2f%%\n", usage);
+				CONSOLE_GOTO(0, tc->id + 1);
 				fflush(STD);
 
 			}
@@ -293,13 +295,15 @@ char* getSystemDisk(char* os_partition_name, char* maj_no){
 }
 
 // $ awk '$3 == "<DISK_NAME>" {print $6"\t"$10}' /proc/diskstats
-void *getDiskReadWrite(void *disk_info_ptr){
+void *getDiskReadWrite(void *thread_container){
 
 /*
 *	Parameter conversion
 */
 
-	struct disk_info *dip = (struct disk_info *) disk_info_ptr;
+	thread_container_t *tc = (thread_container_t *) thread_container;
+
+	struct disk_info *dip = (struct disk_info *) tc->parameter;
 
 /*
 *	Defining Variables
@@ -349,8 +353,9 @@ void *getDiskReadWrite(void *disk_info_ptr){
 			// Output
 			if ( !(Program_Flag & pf_No_CLI_Output) ){
 
-				CONSOLE_GOTO(0, 2);
-				fprintf(STD, "Disk: %-7s\tRead: %7Lu/(bytes per %dms)\tWrite: %7Lu/(bytes per %dms)\n", dip->name, dip->read_bytes, Disk_Interval, dip->written_bytes, Disk_Interval);	
+				CONSOLE_GOTO(0, tc->id + 2);
+				fprintf(STD, " Disk: %-10s\tRead: %7Lu bytes/%dms\tWrite: %7Lu bytes/%dms\n", dip->name, dip->read_bytes, Disk_Interval, dip->written_bytes, Disk_Interval);	
+				CONSOLE_GOTO(0, tc->id + 2);
 				fflush(STD);
 
 			}
@@ -582,32 +587,74 @@ Get Network Usage
 awk '{if(l1){print $2-l1,$10-l2} else{l1=$2; l2=$10;}}' \
 <(grep NET_INT_NAME /proc/net/dev) <(sleep 1; grep NET_INT_NAME /proc/net/dev)
 */
+
 //tail -n +3 /proc/net/dev | grep NET_INT_NAME | column -t
-void getNetworkIntUsage(struct net_int_info *netint, uint32_t interval){
+void * getNetworkIntUsage(void *thread_container){
+
+/*
+*	Parameter conversion
+*/
+
+	thread_container_t *tc = (thread_container_t *) thread_container;
+
+	struct net_int_info *nip = (struct net_int_info *) tc->parameter;
+
+/*
+*	Defining Variables
+*/
 
 	size_t temp_size;
-	str_ptrlen(&temp_size, netint->name);
+	
+	str_ptrlen(&temp_size, nip->name);
+
 	char *input_cmd = (char *)malloc(
 		temp_size * sizeof(char) + sizeof("tail -n +3 /proc/net/dev | grep | awk '{print $2\" \"$10}'")
 	);
 
 	strcpy(input_cmd, "tail -n +3 /proc/net/dev | grep ");
-	strcat(input_cmd, netint->name);
+	strcat(input_cmd, nip->name);
 	strcat(input_cmd, " | awk '{print $2\" \"$10}'");
 
-	char ***down_up = (char ***)calloc(2, sizeof(char **));
-
+	char ***down_up = (char ***)malloc(sizeof(char **)*2);
 	temp_size = 0;
+
+/*
+*	Initialize Down/Up Values
+*/
+
+	pthread_mutex_lock(&Net_int_Mutex);
+	
 	str_split(down_up, run_command(input_cmd), ' ', &temp_size);
+	Init_State |= is_Network_Interface;
 
-	sleep_ms(interval);
+	pthread_mutex_unlock(&Net_int_Mutex);
 
-	str_split(down_up + 1, run_command(input_cmd), ' ', &temp_size);
+	sleep_ms(NetInt_Interval);
 
-	free(input_cmd);
+/*
+*	Get Disk I/O Till The Program Stops
+*/
 
-	netint->down_bps = atoll(down_up[1][0]) - atoll(down_up[0][0]); // AD - BD
-	netint->up_bps = atoll(down_up[1][1]) - atoll(down_up[0][1]); // AU - BU
+	if( Init_State & is_Network_Interface ){
+
+		while( Program_State & ps_Running ){
+
+			*(down_up + 1) = *down_up;
+
+			str_split(down_up, run_command(input_cmd), ' ', &temp_size);
+
+			nip -> down_bps = atoll(down_up[0][0]) - atoll(down_up[1][0]); // AD - BD
+			nip -> up_bps 	= atoll(down_up[0][1]) - atoll(down_up[1][1]); // AU - BU
+
+			// Output
+			if ( !(Program_Flag & pf_No_CLI_Output) ){
+
+				CONSOLE_GOTO(0, tc->id + 3);
+				fprintf(STD, " Network Interface: %-10s\tDown: %7Lu bytes/%dms\tUp: %7Lu bytes/%dms\n", nip->name, nip->down_bps, NetInt_Interval, nip->up_bps, NetInt_Interval);	
+				CONSOLE_GOTO(0, tc->id + 3);
+				fflush(STD);
+
+			}
 
 #ifdef DEBUG_RUT
 
@@ -625,4 +672,25 @@ void getNetworkIntUsage(struct net_int_info *netint, uint32_t interval){
 	);
 
 #endif
+			// tuptuO
+
+			pthread_mutex_unlock(&Net_int_Mutex);
+
+			sleep_ms(NetInt_Interval);
+
+		}
+	}  else {
+
+		free(input_cmd);
+		free(down_up);
+
+		fprintf(STD, RED_BOLD("[ERROR]") " Disk I/O values are not initialized.\n");
+		return NULL;
+
+	}
+
+	free(input_cmd);
+	free(down_up);
+	return NULL;
+	
 }
