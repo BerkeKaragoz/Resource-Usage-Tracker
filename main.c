@@ -16,7 +16,7 @@
 #include <time.h>
 #endif
 
-uint16_t Last_Thread_Id = 0;
+uint16_t Last_Thread_Id = 1;
 
 
 int main (int argc, char * const argv[]){
@@ -31,16 +31,12 @@ int main (int argc, char * const argv[]){
 
 	thread_container_t  *disk_io_tcs,
 						*net_int_tcs,
-						cpu_tc;
-
-	pthread_t 	
-				*net_int_threads;
+						cpu_tc,
+						ram_tc;
 
 	disks_t disks;
 	filesystems_t filesystems;
 	net_ints_t netints;
-
-	uint32_t cpu_interval;
 
 	extern char* optarg;
 	int32_t opt;
@@ -68,10 +64,6 @@ int main (int argc, char * const argv[]){
 		}//switch
 	}
 
-	//RAM
-	getFirstVarNumValue(PATH_MEM_INFO, PASS_WITH_SIZEOF("Active:"), 0);
-	getFirstVarNumValue(PATH_MEM_INFO, PASS_WITH_SIZEOF("MemTotal:"), 0);
-
 	getAllDisks(&disks); //Disks
 	getPhysicalFilesystems(&filesystems); //Filesystems
 	getNetworkInterfaces(&netints); //Network Interfaces
@@ -91,32 +83,44 @@ int main (int argc, char * const argv[]){
 *	Allocate
 */
 
-	disk_io_tcs = malloc(disks.count   * sizeof(thread_container_t));//TODO free
-	net_int_tcs = malloc(netints.count * sizeof(thread_container_t));//TODO free
+	disk_io_tcs = malloc(disks.count   * sizeof(thread_container_t));
+	net_int_tcs = malloc(netints.count * sizeof(thread_container_t));
 
 /*
 *	Create
 */
 
-	cpu_interval = DEFAULT_GLOBAL_INTERVAL;
+	//Cpu
 	cpu_tc.id = Last_Thread_Id++;
-	cpu_tc.parameter = &cpu_interval;
+	cpu_tc.parameter = NULL;
 
 	pthread_create(&cpu_tc.thread, NULL, getCpuUsage, &cpu_tc); // CPU
+	//upC
 
+	//Ram
+	ram_tc.id = Last_Thread_Id++;
+	ram_tc.parameter = NULL;
+
+	pthread_create(&ram_tc.thread, NULL, getRamUsage, &ram_tc);
+	//maR
+
+	//Disk
 	for (uint16_t i = 0; i < disks.count; i++){ // Disks Reads/Writes
 		(*(disk_io_tcs + i)).id = Last_Thread_Id++;
 		(disk_io_tcs + i) -> parameter = disks.info + i;
 
 		pthread_create( &(disk_io_tcs + i)->thread, NULL, getDiskReadWrite, disk_io_tcs + i );
 	}
+	//ksiD
 
+	//Network
 	for (uint16_t i = 0; i < netints.count; i++){ // Get Network Interface Infos
 		(*(net_int_tcs + i)).id = Last_Thread_Id++;
 		(net_int_tcs + i) -> parameter = netints.info + i;
 
-		pthread_create( &(net_int_tcs + i)->thread , NULL, getNetworkIntUsage, net_int_tcs + i);
+		pthread_create( &(net_int_tcs + i)->thread, NULL, getNetworkIntUsage, net_int_tcs + i);
 	}
+	//krowteN
 
 /*
 *	Join
@@ -137,7 +141,8 @@ int main (int argc, char * const argv[]){
 */
 
 	pthread_exit(NULL);
-
+	free(disk_io_tcs);
+	free(net_int_tcs);
 	Program_State = ps_Stopped;
 
 #ifdef DEBUG_RUT
