@@ -7,6 +7,7 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
+#include <inttypes.h>
 #include <math.h>
 #include <time.h>
 #include <pthread.h>
@@ -27,10 +28,13 @@ enum program_flags			Program_Flag	= pf_None;
 enum program_states 		Program_State 	= ps_Ready;
 enum initialization_states 	Init_State 		= is_None;
 
-uint32_t		Disk_Interval	= DEFAULT_GLOBAL_INTERVAL,
+uint32_t		Cpu_Interval	= DEFAULT_GLOBAL_INTERVAL,
+				Ram_Interval	= DEFAULT_GLOBAL_INTERVAL,
+				Disk_Interval	= DEFAULT_GLOBAL_INTERVAL,
 				NetInt_Interval = DEFAULT_GLOBAL_INTERVAL;
 
 pthread_mutex_t Cpu_Mutex 		= PTHREAD_MUTEX_INITIALIZER,
+				Ram_Mutex		= PTHREAD_MUTEX_INITIALIZER,
 				Disk_io_Mutex 	= PTHREAD_MUTEX_INITIALIZER,
 				Net_int_Mutex	= PTHREAD_MUTEX_INITIALIZER;
 
@@ -51,7 +55,7 @@ void *timeLimit (void *thread_container){
 
 	} else {
 
-		fprintf(STD, RED_BOLD("[ERROR] Timelimit is lower than 0. It is set to %d.\n"), DEFAULT_GLOBAL_INTERVAL*3);
+		fprintf(STD, RED_BOLD("[ERROR] Timelimit is lower than 0. It is set to %" PRIu32 ".\n"), DEFAULT_GLOBAL_INTERVAL*3);
 
 	}
 
@@ -95,7 +99,7 @@ void getCpuTimings(uint32_t *cpu_total, uint32_t *cpu_idle, REQUIRE_WITH_SIZE(ch
 				*cpu_total = 0;
 				*cpu_idle = 0;
 				
-				fprintf(STD, RED_BOLD("[ERROR]") " Could NOT parse: %s\n", "getCpuTimings");
+				fprintf(STD, RED_BOLD("[ERROR]") " Could NOT parse: getCpuTimings\n");
 				return;
 			}
 
@@ -117,15 +121,10 @@ void *getCpuUsage(void *thread_container){
 
 	thread_container_t *tc = (thread_container_t *) thread_container;
 
-	uint32_t interval = DEFAULT_GLOBAL_INTERVAL;
+	if ( Cpu_Interval < 0 ){
 
-	if ( (int64_t *) tc->parameter >= 0 ){
-
-		interval = *((uint32_t *) tc->parameter);
-
-	} else {
-
-		fprintf(STD, RED_BOLD("[ERROR] CPU Interval is lower than 0. It is set to %d.\n"), DEFAULT_GLOBAL_INTERVAL);
+		Cpu_Interval = DEFAULT_GLOBAL_INTERVAL;
+		fprintf(STD, RED_BOLD("[ERROR] CPU Interval is lower than 0. It is set to %" PRIu32 ".\n"), DEFAULT_GLOBAL_INTERVAL);
 
 	}
 
@@ -149,7 +148,7 @@ void *getCpuUsage(void *thread_container){
 
 	pthread_mutex_unlock(&Cpu_Mutex);
 
-	sleep_ms(interval);
+	sleep_ms(Cpu_Interval);
 
 /*
 *	Get CPU Usage Till The Program Stops
@@ -179,29 +178,28 @@ void *getCpuUsage(void *thread_container){
 			// Output
 			if ( !(Program_Flag & pf_No_CLI_Output) ){
 
-				CONSOLE_GOTO(0, tc->id + 1);
-				fprintf(STD, " CPU Usage: %7.2f%%\n", usage);
-				CONSOLE_GOTO(0, tc->id + 1);
+				CONSOLE_GOTO(0, tc->id);
+				fprintf(STD, CONSOLE_ERASE_LINE " CPU Usage: %7.2f%%\n", usage);
 				fflush(STD);
 
 			}
 
 #ifdef DEBUG_RUT
 			fprintf(STD,
-				CYAN_BOLD(" --- getCpuUsage()\n")	\
+				CYAN_BOLD(" --- getCpuUsage() --- Thread: %d\n")	\
 					PR_VAR("2.2f", USAGE)			\
-					PR_VAR("d", interval)			\
-					PR_VAR("d", delta-idle)			\
-					PR_VAR("d", delta-total)
+					PR_VAR(PRId32, Cpu_Interval)			\
+					PR_VAR(PRId32, delta-idle)			\
+					PR_VAR(PRId32, delta-total)
 				CYAN_BOLD(" ---\n") 				\
-				, usage, interval, idle - prev_idle, total - prev_total
+				, tc->id, usage, Cpu_Interval, idle - prev_idle, total - prev_total
 			);
 #endif
 			// tuptuO
 
 			pthread_mutex_unlock(&Cpu_Mutex);
 
-			sleep_ms(interval);
+			sleep_ms(Cpu_Interval);
 
 		}
 
@@ -216,7 +214,7 @@ void *getCpuUsage(void *thread_container){
 }
 
 // Find the first VARIABLE in PATH and return its numeric value
-uint64_t getFirstVarNumValue( const char* path, REQUIRE_WITH_SIZE(const char*, variable), const uint16_t variable_column_no ){
+int64_t getFirstVarNumValue( const char* path, REQUIRE_WITH_SIZE(const char*, variable), const uint16_t variable_column_no ){
 	uint64_t output = 0;
 	const char delim[2] = " ";
 	char 	*token 	= NULL,
@@ -235,10 +233,72 @@ uint64_t getFirstVarNumValue( const char* path, REQUIRE_WITH_SIZE(const char*, v
 		return 0;
 	}
 #ifdef DEBUG_RUT
-	fprintf(STD, CYAN_BOLD("getFirstVarNumValue()")" | %s = %llu\n", variable, output);
+	fprintf(STD, CYAN_BOLD("getFirstVarNumValue()")" | %s = %" PRId64 "\n", variable, output);
 #endif
 	free(temp);
 	return output;
+}
+
+void *getRamUsage(void *thread_container){
+
+/*
+*	Parameter Conversion
+*/
+
+	thread_container_t *tc = (thread_container_t *) thread_container;
+
+/*
+*	Get RAM Capacity ( Initialize )
+*/
+
+	int64_t capacity = getFirstVarNumValue(PATH_MEM_INFO, PASS_WITH_SIZEOF("MemTotal:"), 0);
+	Init_State |= is_Ram;
+
+/*
+*	Get RAM Usage Till The Program Stops
+*/
+
+	if( Init_State & is_Ram ){
+
+		while( Program_State & ps_Running ){
+
+			int64_t usage = getFirstVarNumValue(PATH_MEM_INFO, PASS_WITH_SIZEOF("Active:"), 0);
+
+			// Output
+			if ( !(Program_Flag & pf_No_CLI_Output) ){
+
+				pthread_mutex_lock(&Ram_Mutex);
+				CONSOLE_GOTO(0, tc->id);
+				fprintf(STD, CONSOLE_ERASE_LINE " RAM:\t\t%" PRId64 " / %" PRId64, usage, capacity);	
+				fflush(STD);
+				pthread_mutex_unlock(&Ram_Mutex);
+
+			}
+
+#ifdef DEBUG_RUT
+	fprintf(STD,
+		CYAN_BOLD(" --- getRamUsage() --- Thread: %d\n") \
+			PR_VAR(PRIu32, Ram_Interval)	\
+			PR_VAR(PRId64, usage)		\
+			PR_VAR(PRId64, capacity)
+		CYAN_BOLD(" ---\n") 				\
+		, tc->id, Ram_Interval, usage, capacity 
+	);
+#endif
+			// tuptuO
+
+			sleep_ms(Ram_Interval);
+
+		}
+
+	} else {
+
+		fprintf(STD, RED_BOLD("[ERROR]") " RAM values are not initialized.\n");
+		return NULL;
+
+	}
+
+	return NULL;
 }
 
 // Get the current OS disk
@@ -353,16 +413,15 @@ void *getDiskReadWrite(void *thread_container){
 			// Output
 			if ( !(Program_Flag & pf_No_CLI_Output) ){
 
-				CONSOLE_GOTO(0, tc->id + 2);
-				fprintf(STD, " Disk: %-10s\tRead: %7Lu bytes/%dms\tWrite: %7Lu bytes/%dms\n", dip->name, dip->read_bytes, Disk_Interval, dip->written_bytes, Disk_Interval);	
-				CONSOLE_GOTO(0, tc->id + 2);
+				CONSOLE_GOTO(0, tc->id);
+				fprintf(STD, CONSOLE_ERASE_LINE " Disk: %-10s\tRead: %7Lu bytes/%dms\tWrite: %7Lu bytes/%dms\n", dip->name, dip->read_bytes, Disk_Interval, dip->written_bytes, Disk_Interval);	
 				fflush(STD);
 
 			}
 
 #ifdef DEBUG_RUT
 	fprintf(STD,
-		CYAN_BOLD(" --- getDiskReadWrite(")"%s"CYAN_BOLD(") ---\n") \
+		CYAN_BOLD(" --- getDiskReadWrite(")"%s"CYAN_BOLD(") --- Thread: %d\n") \
 			PR_VAR("d", Disk_Interval)		\
 			PR_VAR("s", read_write[0][0])	\
 			PR_VAR("s", read_write[0][1])	\
@@ -371,7 +430,7 @@ void *getDiskReadWrite(void *thread_container){
 			PR_VAR("d", dip->read_bytes)		\
 			PR_VAR("d", dip->written_bytes)	\
 		CYAN_BOLD(" ---\n") 				\
-		, dip->name, Disk_Interval, read_write[0][0], read_write[0][1], read_write[1][0], read_write[1][1], dip->read_bytes, dip->written_bytes
+		, dip->name, tc->id, Disk_Interval, read_write[0][0], read_write[0][1], read_write[1][0], read_write[1][1], dip->read_bytes, dip->written_bytes
 	);
 #endif
 			// tuptuO
@@ -638,6 +697,8 @@ void * getNetworkIntUsage(void *thread_container){
 	if( Init_State & is_Network_Interface ){
 
 		while( Program_State & ps_Running ){
+			
+			pthread_mutex_lock(&Net_int_Mutex);
 
 			*(down_up + 1) = *down_up;
 
@@ -649,9 +710,8 @@ void * getNetworkIntUsage(void *thread_container){
 			// Output
 			if ( !(Program_Flag & pf_No_CLI_Output) ){
 
-				CONSOLE_GOTO(0, tc->id + 3);
-				fprintf(STD, " Network Interface: %-10s\tDown: %7Lu bytes/%dms\tUp: %7Lu bytes/%dms\n", nip->name, nip->down_bps, NetInt_Interval, nip->up_bps, NetInt_Interval);	
-				CONSOLE_GOTO(0, tc->id + 3);
+				CONSOLE_GOTO(0, tc->id);
+				fprintf(STD, CONSOLE_ERASE_LINE " Network Interface: %-10s\tDown: %7Lu bytes/%dms\tUp: %7Lu bytes/%dms\n", nip->name, nip->down_bps, NetInt_Interval, nip->up_bps, NetInt_Interval);	
 				fflush(STD);
 
 			}
@@ -659,8 +719,9 @@ void * getNetworkIntUsage(void *thread_container){
 #ifdef DEBUG_RUT
 
 	fprintf(STD,
-		CYAN_BOLD(" --- getNetworkIntUsage(") "%s" CYAN_BOLD(") ---\n") \
+		CYAN_BOLD(" --- getNetworkIntUsage(") "%s" CYAN_BOLD(") --- Thread: %d\n") \
 			PR_VAR("d", interval)			\
+			PR_VAR("d", type)				\
 			PR_VAR("s", down_up[0][0])		\
 			PR_VAR("s", down_up[0][1])		\
 			PR_VAR("s", down_up[1][0])		\
@@ -668,7 +729,7 @@ void * getNetworkIntUsage(void *thread_container){
 			PR_VAR("d", netint->down_bps)	\
 			PR_VAR("d", netint->up_bps)		\
 		CYAN_BOLD(" ---\n") 				\
-		, netint->name, interval, down_up[0][0], down_up[0][1], down_up[1][0], down_up[1][1], netint->down_bps, netint->up_bps
+		, nip->name, tc->id, NetInt_Interval, nip->type, down_up[0][0], down_up[0][1], down_up[1][0], down_up[1][1], nip->down_bps, nip->up_bps
 	);
 
 #endif

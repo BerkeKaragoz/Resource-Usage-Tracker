@@ -32,6 +32,7 @@
 #define SOUT(T, X)		fprintf(STD, PR_VAR(T, X), X)
 #define TEST            SOUT("s", "--- SEGMENT ---");
 
+#define CONSOLE_ERASE_LINE  "\33[2K"
 #define CONSOLE_RESET()     fprintf(STD, "\033[H\033[J")
 #define CONSOLE_GOTO(X, Y)  fprintf(STD, "\033[%d;%dH", Y, X)
 

@@ -88,7 +88,9 @@ typedef struct network_interfaces{
 // Globals
 extern uint16_t Last_Thread_Id;
 
-extern uint32_t Disk_Interval,
+extern uint32_t Cpu_Interval,
+				Ram_Interval,
+				Disk_Interval,
 				NetInt_Interval;
 
 extern enum program_flags			Program_Flag;
@@ -100,13 +102,14 @@ extern enum initialization_states 	Init_State;
 void *		timeLimit				(void *thread_container);
 
 void * 		getCpuUsage				(void *thread_container);
+void *		getRamUsage				(void *thread_container);
 void *		getDiskReadWrite		(void *thread_container);
 void *		getNetworkIntUsage		(void *thread_container);
 
 void 		getCpuTimings			(uint32_t *cpu_total, uint32_t *cpu_idle, REQUIRE_WITH_SIZE(char *, cpu_identifier));
 void 		getNetworkInterfaces	(net_ints_t *netints);
 
-uint64_t 	getFirstVarNumValue		(const char* path, REQUIRE_WITH_SIZE(const char*, variable), const uint16_t variable_column_no );
+int64_t 	getFirstVarNumValue		(const char* path, REQUIRE_WITH_SIZE(const char*, variable), const uint16_t variable_column_no );
 char * 		getSystemDisk			(char* os_partition_name, char* maj_no);
 void 		getAllDisks				(disks_t *disks);
 void 		getPhysicalFilesystems	(filesystems_t *filesystems);
