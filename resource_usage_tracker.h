@@ -12,8 +12,14 @@
 #include "berkelib/macros_.h"
 
 //#define DEBUG_RUT
-#define DEFAULT_GLOBAL_INTERVAL 1000 // 1000 is consistent minimum for cpu on physical machines, use higher for virtuals
 #define MAX_THREADS 64
+#define DEFAULT_GLOBAL_INTERVAL 1000
+
+#define DEFAULT_CPU_INTERVAL		DEFAULT_GLOBAL_INTERVAL
+#define DEFAULT_RAM_INTERVAL		DEFAULT_GLOBAL_INTERVAL	* 2
+#define DEFAULT_DISK_INTERVAL		DEFAULT_GLOBAL_INTERVAL	* 2
+#define DEFAULT_NETINT_INTERVAL		DEFAULT_GLOBAL_INTERVAL * 2
+#define DEFAULT_FILESYS_INTERVAL	DEFAULT_GLOBAL_INTERVAL * 10
 
 #define PATH_PROC 			"/proc/"
 #define PATH_CPU_STATS		PATH_PROC "stat"
@@ -91,7 +97,8 @@ extern uint16_t Last_Thread_Id;
 extern uint32_t Cpu_Interval,
 				Ram_Interval,
 				Disk_Interval,
-				NetInt_Interval;
+				NetInt_Interval,
+				FileSys_Interval;
 
 extern enum program_flags			Program_Flag;
 extern enum program_states 			Program_State;
@@ -103,8 +110,9 @@ void *		timeLimit				(void *thread_container);
 
 void * 		getCpuUsage				(void *thread_container);
 void *		getRamUsage				(void *thread_container);
-void *		getDiskReadWrite		(void *thread_container);
+void *		getDiskUsage			(void *thread_container);
 void *		getNetworkIntUsage		(void *thread_container);
+void *		getFilesystemsUsage		(void *thread_container);
 
 void 		getCpuTimings			(uint32_t *cpu_total, uint32_t *cpu_idle, REQUIRE_WITH_SIZE(char *, cpu_identifier));
 void 		getNetworkInterfaces	(net_ints_t *netints);

@@ -28,15 +28,17 @@ enum program_flags			Program_Flag	= pf_None;
 enum program_states 		Program_State 	= ps_Ready;
 enum initialization_states 	Init_State 		= is_None;
 
-uint32_t		Cpu_Interval	= DEFAULT_GLOBAL_INTERVAL,
-				Ram_Interval	= DEFAULT_GLOBAL_INTERVAL,
-				Disk_Interval	= DEFAULT_GLOBAL_INTERVAL,
-				NetInt_Interval = DEFAULT_GLOBAL_INTERVAL;
+uint32_t		Cpu_Interval	= DEFAULT_CPU_INTERVAL,
+				Ram_Interval	= DEFAULT_RAM_INTERVAL,
+				Disk_Interval	= DEFAULT_DISK_INTERVAL,
+				NetInt_Interval = DEFAULT_NETINT_INTERVAL,
+				FileSys_Interval= DEFAULT_FILESYS_INTERVAL;
 
 pthread_mutex_t Cpu_Mutex 		= PTHREAD_MUTEX_INITIALIZER,
 				Ram_Mutex		= PTHREAD_MUTEX_INITIALIZER,
 				Disk_io_Mutex 	= PTHREAD_MUTEX_INITIALIZER,
-				Net_int_Mutex	= PTHREAD_MUTEX_INITIALIZER;
+				Net_int_Mutex	= PTHREAD_MUTEX_INITIALIZER,
+				File_sys_Mutex	= PTHREAD_MUTEX_INITIALIZER;
 
 
 /*
@@ -180,6 +182,8 @@ void *getCpuUsage(void *thread_container){
 
 				CONSOLE_GOTO(0, tc->id);
 				fprintf(STD, CONSOLE_ERASE_LINE " CPU Usage: %7.2f%%\n", usage);
+				CONSOLE_GOTO(0, Last_Thread_Id + 1);
+				fprintf(STD, CONSOLE_ERASE_LINE);
 				fflush(STD);
 
 			}
@@ -270,6 +274,8 @@ void *getRamUsage(void *thread_container){
 				pthread_mutex_lock(&Ram_Mutex);
 				CONSOLE_GOTO(0, tc->id);
 				fprintf(STD, CONSOLE_ERASE_LINE " RAM:\t\t%" PRId64 " / %" PRId64, usage, capacity);	
+				CONSOLE_GOTO(0, Last_Thread_Id + 1);
+				fprintf(STD, CONSOLE_ERASE_LINE);
 				fflush(STD);
 				pthread_mutex_unlock(&Ram_Mutex);
 
@@ -355,7 +361,7 @@ char* getSystemDisk(char* os_partition_name, char* maj_no){
 }
 
 // $ awk '$3 == "<DISK_NAME>" {print $6"\t"$10}' /proc/diskstats
-void *getDiskReadWrite(void *thread_container){
+void *getDiskUsage(void *thread_container){
 
 /*
 *	Parameter conversion
@@ -415,13 +421,15 @@ void *getDiskReadWrite(void *thread_container){
 
 				CONSOLE_GOTO(0, tc->id);
 				fprintf(STD, CONSOLE_ERASE_LINE " Disk: %-10s\tRead: %7Lu bytes/%dms\tWrite: %7Lu bytes/%dms\n", dip->name, dip->read_bytes, Disk_Interval, dip->written_bytes, Disk_Interval);	
+				CONSOLE_GOTO(0, Last_Thread_Id + 1);
+				fprintf(STD, CONSOLE_ERASE_LINE);
 				fflush(STD);
 
 			}
 
 #ifdef DEBUG_RUT
 	fprintf(STD,
-		CYAN_BOLD(" --- getDiskReadWrite(")"%s"CYAN_BOLD(") --- Thread: %d\n") \
+		CYAN_BOLD(" --- getDiskUsage(")"%s"CYAN_BOLD(") --- Thread: %d\n") \
 			PR_VAR("d", Disk_Interval)		\
 			PR_VAR("s", read_write[0][0])	\
 			PR_VAR("s", read_write[0][1])	\
@@ -499,57 +507,6 @@ void getAllDisks(disks_t *disks){
 	}
 	fprintf(STD, CYAN_BOLD(" ---\n"));
 #endif
-}
-
-// df --type btrfs --type ext4 --type ext3 --type ext2 --type vfat --type iso9660 --block-size=1 | tail -n +2 | awk {'print $1" "$2" "$3" "$4'}
-void getPhysicalFilesystems(filesystems_t *filesystems){
-	char **filesystems_temp = NULL;
-	
-	str_split(&filesystems_temp, run_command("df --type btrfs --type ext4 --type ext3 --type ext2 --type vfat --type iso9660 --block-size=1 | tail -n +2 | awk {'print $1\" \"$2\" \"$3\" \"$4'}"), '\n', (size_t *) &filesystems->count);
-
-	// Delete if NULL
-	if (*filesystems_temp == NULL){
-		*filesystems_temp = *(filesystems_temp + 1);
-		(filesystems->count)--;
-	}
-
-	uint16_t i;
-	for(i = 1; i < filesystems->count; i++){
-
-		if( *(filesystems_temp + i) == NULL ) {
-			if (i + 1 < filesystems->count){		
-				*(filesystems_temp + i - 1) = *(filesystems_temp + i + 1);
-			}
-			(filesystems->count)--;
-		}
-		
-	}//for
-	// LLUN fi eteleD
-	size_t info_field_count = 0;
-	char **fsi_temp = NULL;
-	for (i = 0; i < filesystems->count; i++){
-		(*(filesystems + i)).info = (struct filesystem_info *)malloc(sizeof(struct filesystem_info));
-		str_split(&fsi_temp, *(filesystems_temp + i), ' ', &info_field_count );
-		(*((*filesystems).info + i)).partition 	= *(fsi_temp + 0);
-		(*((*filesystems).info + i)).block_size = (size_t) *(fsi_temp + 1); // as 1-byte sizes
-		(*((*filesystems).info + i)).used 		= (size_t) *(fsi_temp + 2);
-		(*((*filesystems).info + i)).available 	= (size_t) *(fsi_temp + 3);
-	}
-	free(fsi_temp);
-	free(filesystems_temp);
-
-	#ifdef DEBUG_RUT
-		fprintf(STD, CYAN_BOLD(" --- getPhysicalFilesystems() ---\n"));
-		SOUT("d", filesystems->count);
-		fprintf(STD, CYAN_BOLD("Filesystems:\n"));
-		for(uint16_t i = 0 ; i < filesystems->count; i++){
-			fprintf(STD, CYAN_BOLD("- Partition: ")"\t%s\n", (*((*filesystems).info + i)).partition);
-			fprintf(STD, CYAN_BOLD("- Byte blocks: ")"\t%s\n", (*((*filesystems).info + i)).block_size);
-			fprintf(STD, CYAN_BOLD("- Used: ")"\t%s\n", (*((*filesystems).info + i)).used);
-			fprintf(STD, CYAN_BOLD("- Available: ")"\t%s\n", (*((*filesystems).info + i)).available);
-		}
-		fprintf(STD, CYAN_BOLD(" ---\n"));
-	#endif
 }
 
 //Alternative: tail -n +3 /proc/net/dev | awk '{print $1}' | sed 's/.$//'
@@ -711,9 +668,10 @@ void * getNetworkIntUsage(void *thread_container){
 			if ( !(Program_Flag & pf_No_CLI_Output) ){
 
 				CONSOLE_GOTO(0, tc->id);
-				fprintf(STD, CONSOLE_ERASE_LINE " Network Interface: %-10s\tDown: %7Lu bytes/%dms\tUp: %7Lu bytes/%dms\n", nip->name, nip->down_bps, NetInt_Interval, nip->up_bps, NetInt_Interval);	
+				fprintf(STD, CONSOLE_ERASE_LINE " Network: %-10s\tDown: %7Lu bytes/%dms\tUp: %7Lu bytes/%dms\n", nip->name, nip->down_bps, NetInt_Interval, nip->up_bps, NetInt_Interval);	
+				CONSOLE_GOTO(0, Last_Thread_Id + 1);
+				fprintf(STD, CONSOLE_ERASE_LINE);
 				fflush(STD);
-
 			}
 
 #ifdef DEBUG_RUT
@@ -754,4 +712,127 @@ void * getNetworkIntUsage(void *thread_container){
 	free(down_up);
 	return NULL;
 	
+}
+
+// df --type btrfs --type ext4 --type ext3 --type ext2 --type vfat --type iso9660 --block-size=1 | tail -n +2 | awk {'print $1" "$2" "$3" "$4'}
+void getPhysicalFilesystems(filesystems_t *filesystems){
+	char **filesystems_temp = NULL;
+	
+	str_split(&filesystems_temp, run_command("df --type btrfs --type ext4 --type ext3 --type ext2 --type vfat --type iso9660 --block-size=1 | tail -n +2 | awk {'print $1\" \"$2\" \"$3\" \"$4'}"), '\n', (size_t *) &filesystems->count);
+
+	// Delete if NULL
+	if (*filesystems_temp == NULL){
+		*filesystems_temp = *(filesystems_temp + 1);
+		(filesystems->count)--;
+	}
+
+	uint16_t i;
+	for(i = 1; i < filesystems->count; i++){
+
+		if( *(filesystems_temp + i) == NULL ) {
+			if (i + 1 < filesystems->count){		
+				*(filesystems_temp + i - 1) = *(filesystems_temp + i + 1);
+			}
+			(filesystems->count)--;
+		}
+		
+	}//for
+	// LLUN fi eteleD
+	size_t info_field_count = 0;
+	char **fsi_temp = NULL;
+	for (i = 0; i < filesystems->count; i++){
+		(*(filesystems + i)).info = (struct filesystem_info *)malloc(sizeof(struct filesystem_info));
+		str_split(&fsi_temp, *(filesystems_temp + i), ' ', &info_field_count );
+		(*((*filesystems).info + i)).partition 	= *(fsi_temp + 0);
+		(*((*filesystems).info + i)).block_size = (size_t) *(fsi_temp + 1); // as 1-byte sizes
+		(*((*filesystems).info + i)).used 		= (size_t) *(fsi_temp + 2);
+		(*((*filesystems).info + i)).available 	= (size_t) *(fsi_temp + 3);
+	}
+
+	free(fsi_temp);
+	free(filesystems_temp);
+
+#ifdef DEBUG_RUT
+		fprintf(STD, CYAN_BOLD(" --- getPhysicalFilesystems() ---\n"));
+		SOUT("d", filesystems->count);
+		fprintf(STD, CYAN_BOLD("Filesystems:\n"));
+		for(uint16_t i = 0 ; i < filesystems->count; i++){
+			fprintf(STD, CYAN_BOLD("- Partition: ")"\t%s\n", (*((*filesystems).info + i)).partition);
+			fprintf(STD, CYAN_BOLD("- Byte blocks: ")"\t%s\n", (*((*filesystems).info + i)).block_size);
+			fprintf(STD, CYAN_BOLD("- Used: ")"\t%s\n", (*((*filesystems).info + i)).used);
+			fprintf(STD, CYAN_BOLD("- Available: ")"\t%s\n", (*((*filesystems).info + i)).available);
+		}
+		fprintf(STD, CYAN_BOLD(" ---\n"));
+#endif
+
+}
+
+void *getFilesystemsUsage(void *thread_container){
+
+/*
+*	Parameter Conversion
+*/
+
+	thread_container_t *tc = (thread_container_t *) thread_container;
+
+	filesystems_t *fss = (filesystems_t *) tc->parameter;
+
+/*
+*	Get RAM Capacity ( Initialize )
+*/
+
+	pthread_mutex_lock(&File_sys_Mutex);
+
+	getPhysicalFilesystems(fss);
+	Init_State |= is_Filesystems;
+
+	pthread_mutex_unlock(&File_sys_Mutex);
+	
+/*
+*	Get RAM Usage Till The Program Stops
+*/
+
+	if( Init_State & is_Filesystems ){
+
+		while( Program_State & ps_Running ){
+
+			// Output
+			if ( !(Program_Flag & pf_No_CLI_Output) ){
+
+				pthread_mutex_lock(&File_sys_Mutex);
+
+				CONSOLE_GOTO(0, Last_Thread_Id + 2);
+				fprintf(STD, "Filesystems:");
+
+				for(uint32_t i = 0; i < fss->count; i++){
+					CONSOLE_GOTO(0, Last_Thread_Id + 3 + i);
+					fprintf(STD, CONSOLE_ERASE_LINE " %s:\t%" PRIu64 " / %" PRIu64, (fss->info + i)->partition, (fss->info + i)->used, ( (fss->info + i)->used + (fss->info + i)->available) );
+				}
+
+				CONSOLE_GOTO(0, Last_Thread_Id + 1);
+				fprintf(STD, CONSOLE_ERASE_LINE);
+
+				fflush(STD);
+
+				pthread_mutex_unlock(&File_sys_Mutex);
+
+			}
+			// tuptuO
+
+			sleep_ms(FileSys_Interval);
+
+			pthread_mutex_lock(&File_sys_Mutex);
+			getPhysicalFilesystems(fss);
+			pthread_mutex_unlock(&File_sys_Mutex);
+
+		}
+
+	} else {
+
+		fprintf(STD, RED_BOLD("[ERROR]") " RAM values are not initialized.\n");
+		return NULL;
+
+	}
+
+	return NULL;
 }

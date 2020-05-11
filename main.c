@@ -32,7 +32,8 @@ int main (int argc, char * const argv[]){
 	thread_container_t  *disk_io_tcs,
 						*net_int_tcs,
 						cpu_tc,
-						ram_tc;
+						ram_tc,
+						fss_tc;
 
 	disks_t disks;
 	filesystems_t filesystems;
@@ -40,7 +41,7 @@ int main (int argc, char * const argv[]){
 
 	extern char* optarg;
 	int32_t opt;
-	#define _ARGS_ "t"
+#define _ARGS_ "t"
 	while ((opt = getopt(argc, argv, _ARGS_":T")) != -1){
 
 		switch (opt) {
@@ -65,7 +66,6 @@ int main (int argc, char * const argv[]){
 	}
 
 	getAllDisks(&disks); //Disks
-	getPhysicalFilesystems(&filesystems); //Filesystems
 	getNetworkInterfaces(&netints); //Network Interfaces
 
 	if(disks.count > 1)
@@ -104,12 +104,19 @@ int main (int argc, char * const argv[]){
 	pthread_create(&ram_tc.thread, NULL, getRamUsage, &ram_tc);
 	//maR
 
+	//Filesystems
+	fss_tc.id = Last_Thread_Id++;
+	fss_tc.parameter = &filesystems;
+
+	pthread_create(&fss_tc.thread, NULL, getFilesystemsUsage, &fss_tc);
+	//smetsyseliF
+
 	//Disk
 	for (uint16_t i = 0; i < disks.count; i++){ // Disks Reads/Writes
 		(*(disk_io_tcs + i)).id = Last_Thread_Id++;
 		(disk_io_tcs + i) -> parameter = disks.info + i;
 
-		pthread_create( &(disk_io_tcs + i)->thread, NULL, getDiskReadWrite, disk_io_tcs + i );
+		pthread_create( &(disk_io_tcs + i)->thread, NULL, getDiskUsage, disk_io_tcs + i );
 	}
 	//ksiD
 
