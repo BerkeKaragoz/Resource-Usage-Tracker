@@ -12,6 +12,10 @@
 #include "macros_.h"
 
 void        str_ptrlen              (size_t *output, char *str);
+void        str_to_int64            (char *string, int64_t *output);
+void        str_to_int32            (char *string, int32_t *output) ;
+void        str_to_uint64           (char *string, uint64_t *output);
+void        str_to_uint32           (char *string, uint32_t *output);
 void 	    str_split				(char *** output, char *str, const char delimiter, size_t *count_ptr);
 void 		sleep_ms				(const uint32_t milliseconds);
 char * 		run_command				(char *command);

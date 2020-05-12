@@ -23,6 +23,46 @@ void str_ptrlen(size_t *output, char *str){
 	return;
 }
 
+void str_to_int64(char *string, int64_t *output) {
+	char *temp;
+	*output = strtoll(string, &temp, 0);
+
+	if (*temp != '\0'){
+		fprintf(stderr, RED_BOLD("[ERROR]") " %s to long and leftover string is: %s\n", string, temp);
+		exit(EXIT_FAILURE);
+	}
+}
+
+void str_to_int32(char *string, int32_t *output) {
+	char *temp;
+	*output = strtol(string, &temp, 0);
+
+	if (*temp != '\0'){
+		fprintf(stderr, RED_BOLD("[ERROR]") " %s to long and leftover string is: %s\n", string, temp);
+		exit(EXIT_FAILURE);
+	}
+}
+
+void str_to_uint64(char *string, uint64_t *output) {
+	char *temp;
+	*output = strtoull(string, &temp, 0);
+
+	if (*temp != '\0'){
+		fprintf(stderr, RED_BOLD("[ERROR]") " %s to long and leftover string is: %s\n", string, temp);
+		exit(EXIT_FAILURE);
+	}
+}
+
+void str_to_uint32(char *string, uint32_t *output) {
+	char *temp;
+	*output = strtoul(string, &temp, 0);
+
+	if (*temp != '\0'){
+		fprintf(stderr, RED_BOLD("[ERROR]") " %s to long and leftover string is: %s\n", string, temp);
+		exit(EXIT_FAILURE);
+	}
+}
+
 // Splits STR by the DELIMITER to string array and returns it with element COUNT
 void str_split(char ***output, char *str, const char delimiter, size_t *count_ptr){	
 	
@@ -48,11 +88,13 @@ void str_split(char ***output, char *str, const char delimiter, size_t *count_pt
     }
 
     // Add space for trailing token.
-    *count_ptr += last_comma < (str + strlen(str) - 1);
+	size_t size = strlen(str);
+    *count_ptr += last_comma < (str + size - 1);
 
     // Add space for terminating null string so caller
     // knows where the list of returned strings ends.
     (*count_ptr)++;
+	*(str + size - 1) = '\0';
 
     *output = malloc(sizeof(char*) * (*count_ptr));
 

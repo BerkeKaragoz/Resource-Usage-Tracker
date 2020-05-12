@@ -6,6 +6,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
+#include <inttypes.h>
 #include <pthread.h>
 
 #include "resource_usage_tracker.h"
@@ -41,12 +42,12 @@ int main (int argc, char * const argv[]){
 
 	extern char* optarg;
 	int32_t opt;
-#define _ARGS_ 		"ht:Tc:Cr:Rf:Fd:Dn:N"
+#define _ARGS_ 	"ht:Tc:Cr:Rf:Fd:Dn:N"
 	while ((opt = getopt(argc, argv, _ARGS_)) != -1){
 
 		switch (opt) {
 			case 'h':
-			
+
 				fprintf(STD, "Usage: %s [-" _ARGS_ "] [value]\n", argv[0]);
 				exit(EXIT_SUCCESS);
 
@@ -56,9 +57,8 @@ int main (int argc, char * const argv[]){
 					int64_t timelimit_ms = INT64_MIN;
 					thread_container_t tlc;
 
-					timelimit_ms = atol(optarg); //TODO validation
-
-					tlc.id = UINT16_MAX;
+					str_to_int64(optarg, &timelimit_ms);
+					tlc.id = MAX_THREADS - 1;
 					tlc.parameter = &timelimit_ms;
 
 					pthread_create(&tlc.thread, NULL, timeLimit, &tlc);
@@ -66,29 +66,35 @@ int main (int argc, char * const argv[]){
 			break;
 			case 'c':
 
-				Cpu_Interval = atol(optarg); //TODO validation
+				str_to_uint32(optarg, &Cpu_Interval);
 
 			break;
 			case 'r':
 
-				Ram_Interval = atol(optarg); //TODO validation
+				str_to_uint32(optarg, &Ram_Interval);
 
 			break;
 			case 'f':
 
-				FileSys_Interval = atol(optarg); //TODO validation
+				str_to_uint32(optarg, &FileSys_Interval);
 
 			break;
 			case 'd':
 
-				Disk_Interval = atol(optarg); //TODO validation
+				str_to_uint32(optarg, &Disk_Interval);
 
 			break;
 			case 'n':
 
-				NetInt_Interval = atol(optarg); //TODO validation
+				str_to_uint32(optarg, &NetInt_Interval);
 
 			break;
+			
+			/*
+			*	TODO (?) x for read from xml for alerts
+			*	cpu 90% 5min
+			*	ram 7gig 10min
+			*/
 
 			default:				
 				fprintf(STD, "Usage: %s [-" _ARGS_ "] [value]\n", argv[0]);

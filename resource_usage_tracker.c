@@ -57,7 +57,7 @@ void *timeLimit (void *thread_container){
 
 	} else {
 
-		fprintf(STD, RED_BOLD("[ERROR] Timelimit is lower than 0. It is set to %" PRIu32 ".\n"), DEFAULT_GLOBAL_INTERVAL*3);
+		fprintf(STD, RED_BOLD("[ERROR] Timelimit (%" PRId64 ") is lower than 1. It is set to %" PRIu32 ".\n"), (*((int64_t *) tc.parameter)), DEFAULT_GLOBAL_INTERVAL*3);
 
 	}
 
