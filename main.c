@@ -41,10 +41,16 @@ int main (int argc, char * const argv[]){
 
 	extern char* optarg;
 	int32_t opt;
-#define _ARGS_ "t"
-	while ((opt = getopt(argc, argv, _ARGS_":T")) != -1){
+#define _ARGS_ 		"ht:Tc:Cr:Rf:Fd:Dn:N"
+	while ((opt = getopt(argc, argv, _ARGS_)) != -1){
 
 		switch (opt) {
+			case 'h':
+			
+				fprintf(STD, "Usage: %s [-" _ARGS_ "] [value]\n", argv[0]);
+				exit(EXIT_SUCCESS);
+
+			break;
 			case 't':
 				{
 					int64_t timelimit_ms = INT64_MIN;
@@ -57,6 +63,31 @@ int main (int argc, char * const argv[]){
 
 					pthread_create(&tlc.thread, NULL, timeLimit, &tlc);
 				}
+			break;
+			case 'c':
+
+				Cpu_Interval = atol(optarg); //TODO validation
+
+			break;
+			case 'r':
+
+				Ram_Interval = atol(optarg); //TODO validation
+
+			break;
+			case 'f':
+
+				FileSys_Interval = atol(optarg); //TODO validation
+
+			break;
+			case 'd':
+
+				Disk_Interval = atol(optarg); //TODO validation
+
+			break;
+			case 'n':
+
+				NetInt_Interval = atol(optarg); //TODO validation
+
 			break;
 
 			default:				
@@ -72,7 +103,7 @@ int main (int argc, char * const argv[]){
 	{
 		getSystemDisk(NULL, NULL); //System Disk
 	}
-	else if (disks.count <= 0)
+	else if (disks.count = 0)
 	{
 		fprintf(STD, RED_BOLD("[ERROR]")" Could not get the disks!\n");
 		exit(EXIT_FAILURE);

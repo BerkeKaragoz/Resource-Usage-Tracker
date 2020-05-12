@@ -63,7 +63,7 @@ void *timeLimit (void *thread_container){
 
 	sleep_ms(timelimit);
 
-	fprintf(STD, "Timelimit is over.\nSuccess!\n");
+	fprintf(STD, CONSOLE_ERASE_LINE "Timelimit is over.\n" CONSOLE_ERASE_LINE "Success!\n");
 	exit(EXIT_SUCCESS); //TODO cleanup
 }
 
@@ -144,6 +144,17 @@ void *getCpuUsage(void *thread_container){
 */
 
 	pthread_mutex_lock(&Cpu_Mutex);
+
+	// Initial Output
+	if ( !(Program_Flag & pf_No_CLI_Output) ){
+
+		CONSOLE_GOTO(0, tc->id);
+		fprintf(STD, CONSOLE_ERASE_LINE " CPU Usage: \tWaiting for %" PRIu32 "ms...\n", Cpu_Interval);	
+		CONSOLE_GOTO(0, Last_Thread_Id + 1);
+		fprintf(STD, CONSOLE_ERASE_LINE);
+		fflush(STD);
+
+	}//
 
 	getCpuTimings(&total, &idle, PASS_WITH_SIZEOF("cpu"));
 	Init_State |= is_Cpu;
@@ -309,8 +320,7 @@ void *getRamUsage(void *thread_container){
 
 // Get the current OS disk
 char* getSystemDisk(char* os_partition_name, char* maj_no){
-	const char disk_min_no = '0';
-	
+
 	os_partition_name = NULL;
 	maj_no = NULL;
 	
@@ -392,6 +402,17 @@ void *getDiskUsage(void *thread_container){
 
 	pthread_mutex_lock(&Disk_io_Mutex);
 	
+	// Initial Output
+	if ( !(Program_Flag & pf_No_CLI_Output) ){
+
+		CONSOLE_GOTO(0, tc->id);
+		fprintf(STD, CONSOLE_ERASE_LINE " Disk: %-10s\tWaiting for %" PRIu32 "ms...\n", dip->name, Disk_Interval);	
+		CONSOLE_GOTO(0, Last_Thread_Id + 1);
+		fprintf(STD, CONSOLE_ERASE_LINE);
+		fflush(STD);
+
+	}//
+
 	str_split(read_write, run_command(input_cmd), '\t', &temp_size);
 	Init_State |= is_Disk_io;
 
@@ -639,6 +660,17 @@ void * getNetworkIntUsage(void *thread_container){
 */
 
 	pthread_mutex_lock(&Net_int_Mutex);
+
+	// Initial Output
+	if ( !(Program_Flag & pf_No_CLI_Output) ){
+
+		CONSOLE_GOTO(0, tc->id);
+		fprintf(STD, CONSOLE_ERASE_LINE " Network: %-10s\tWaiting for %" PRIu32 "ms...\n", nip->name, NetInt_Interval);	
+		CONSOLE_GOTO(0, Last_Thread_Id + 1);
+		fprintf(STD, CONSOLE_ERASE_LINE);
+		fflush(STD);
+
+	}//
 	
 	str_split(down_up, run_command(input_cmd), ' ', &temp_size);
 	Init_State |= is_Network_Interface;
@@ -806,7 +838,7 @@ void *getFilesystemsUsage(void *thread_container){
 
 				for(uint32_t i = 0; i < fss->count; i++){
 					CONSOLE_GOTO(0, Last_Thread_Id + 3 + i);
-					fprintf(STD, CONSOLE_ERASE_LINE " %s:\t%" PRIu64 " / %" PRIu64, (fss->info + i)->partition, (fss->info + i)->used, ( (fss->info + i)->used + (fss->info + i)->available) );
+					fprintf(STD, CONSOLE_ERASE_LINE " %s:\t%" PRIu64 " / %" PRIu64 "\n", (fss->info + i)->partition, (fss->info + i)->used, ( (fss->info + i)->used + (fss->info + i)->available) );
 				}
 
 				CONSOLE_GOTO(0, Last_Thread_Id + 1);
