@@ -97,7 +97,15 @@ char* run_command(char* command){
 
 	while (fgets(path, sizeof(path), fp) != NULL) {
 		output_size += sizeof(path);
-		output = realloc(output, output_size);
+		void *temp = realloc(output, output_size);
+
+		if(temp != NULL)
+			output = (char *) temp;
+		else {
+			output = NULL;
+			fprintf(stderr, RED_BOLD("[ERROR]") " Cannot reallocate memory\n");
+		}
+
 		strcat(output, path);
 	}
 
@@ -152,7 +160,7 @@ void readSearchGetFirstLine(char **output, const char* path, REQUIRE_WITH_SIZE(c
 
 	FILE *fp = fopen(path, "r");
 	if (fp == NULL){
-		fprintf(STD, RED_BOLD("[ERROR]") " Could not read the file: %s", path);
+		fprintf(stderr, RED_BOLD("[ERROR]") " Could not read the file: %s", path);
 		return;
 	}
 

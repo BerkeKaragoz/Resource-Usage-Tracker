@@ -49,9 +49,9 @@ void *timeLimit (void *thread_container){
 
 	thread_container_t tc = *((thread_container_t *) thread_container);
 
-	uint32_t timelimit = DEFAULT_GLOBAL_INTERVAL*3;
+	uint32_t timelimit = DEFAULT_GLOBAL_INTERVAL * 3;
 
-	if ( (int64_t *) tc.parameter >= 0 ){
+	if ( *((int64_t *) tc.parameter) >= 0 ){
 
 		timelimit = *((uint32_t *) tc.parameter);
 
@@ -81,7 +81,7 @@ void getCpuTimings(uint32_t *cpu_total, uint32_t *cpu_idle, REQUIRE_WITH_SIZE(ch
 
 	readSearchGetFirstLine(&temp, PATH_CPU_STATS, PASS_WITH_SIZE_VAR(cpu_identifier), 1, PASS_WITH_SIZEOF(" "));
 
-	token = strtok(temp, delim);
+	strtok(temp, delim);
 	token = strtok(NULL, delim); // skip cpu_id
 	
 	while ( token != NULL){
@@ -123,25 +123,18 @@ void *getCpuUsage(void *thread_container){
 
 	thread_container_t *tc = (thread_container_t *) thread_container;
 
-	if ( Cpu_Interval < 0 ){
+	if ( Cpu_Interval < 10 ){//todo if 0 do not track
 
 		Cpu_Interval = DEFAULT_GLOBAL_INTERVAL;
-		fprintf(STD, RED_BOLD("[ERROR] CPU Interval is lower than 0. It is set to %" PRIu32 ".\n"), DEFAULT_GLOBAL_INTERVAL);
+		fprintf(STD, RED_BOLD("[ERROR] CPU Interval is lower than 10ms. It is set to %" PRIu32 ".\n"), DEFAULT_GLOBAL_INTERVAL);
 
 	}
 
 /*
-*	Declarations
-*/
-
-	uint32_t	total		= 0,	idle		= 0,
-				prev_total	= 0,	prev_idle	= 0;
-
-	float 		usage = 0.0;
-
-/*
 *	Initialize CPU Timings
 */
+
+	uint32_t total = 0,	idle = 0;
 
 	pthread_mutex_lock(&Cpu_Mutex);
 
@@ -168,6 +161,11 @@ void *getCpuUsage(void *thread_container){
 */
 
 	if( Init_State & is_Cpu ){
+
+
+		uint32_t prev_total	= 0, 
+				 prev_idle	= 0;
+		float 	 usage 		= 0.0;
 
 		while( Program_State & ps_Running ){
 
@@ -237,7 +235,7 @@ int64_t getFirstVarNumValue( const char* path, REQUIRE_WITH_SIZE(const char*, va
 
 	readSearchGetFirstLine(&temp, path, PASS_WITH_SIZE_VAR(variable), variable_column_no, PASS_WITH_SIZEOF(delim));
 
-	token = strtok(temp, delim);
+	strtok(temp, delim);
 	token = strtok(NULL, delim); // skip VARIABLE
 	
 
@@ -284,7 +282,7 @@ void *getRamUsage(void *thread_container){
 
 				pthread_mutex_lock(&Ram_Mutex);
 				CONSOLE_GOTO(0, tc->id);
-				fprintf(STD, CONSOLE_ERASE_LINE " RAM:\t\t%" PRId64 " / %" PRId64, usage, capacity);	
+				fprintf(STD, CONSOLE_ERASE_LINE " RAM:\t\t%" PRId64 " / %" PRId64 "\n", usage, capacity);	
 				CONSOLE_GOTO(0, Last_Thread_Id + 1);
 				fprintf(STD, CONSOLE_ERASE_LINE);
 				fflush(STD);
@@ -441,7 +439,7 @@ void *getDiskUsage(void *thread_container){
 			if ( !(Program_Flag & pf_No_CLI_Output) ){
 
 				CONSOLE_GOTO(0, tc->id);
-				fprintf(STD, CONSOLE_ERASE_LINE " Disk: %-10s\tRead: %7Lu bytes/%dms\tWrite: %7Lu bytes/%dms\n", dip->name, dip->read_bytes, Disk_Interval, dip->written_bytes, Disk_Interval);	
+				fprintf(STD, CONSOLE_ERASE_LINE " Disk: %-10s\tRead: %7zu bytes/%" PRIu32 "ms\tWrite: %7zu bytes/%" PRIu32 "ms\n", dip->name, dip->read_bytes, Disk_Interval, dip->written_bytes, Disk_Interval);	
 				CONSOLE_GOTO(0, Last_Thread_Id + 1);
 				fprintf(STD, CONSOLE_ERASE_LINE);
 				fflush(STD);
@@ -578,7 +576,7 @@ void getNetworkInterfaces(net_ints_t *netints){
 
 		net_file = fopen(path, "r");
 
-		fscanf(net_file, "%d", &arphdr_no);
+		fscanf(net_file, "%" PRIu16, &arphdr_no);
 
 		// Discard if not an ARP Hardware interface
 		if ( arphdr_no <= ARPHRD_INFINIBAND){
@@ -595,7 +593,7 @@ void getNetworkInterfaces(net_ints_t *netints){
 
 			net_file = fopen(path, "r");
 
-			fscanf(net_file, "%lu", &((*netints).info + i)->bandwith_mbps);
+			fscanf(net_file, "%zu", &((*netints).info + i)->bandwith_mbps);
 			filtered_index++;
 		} else {
 			(netints->count)--;
@@ -700,7 +698,7 @@ void * getNetworkIntUsage(void *thread_container){
 			if ( !(Program_Flag & pf_No_CLI_Output) ){
 
 				CONSOLE_GOTO(0, tc->id);
-				fprintf(STD, CONSOLE_ERASE_LINE " Network: %-10s\tDown: %7Lu bytes/%dms\tUp: %7Lu bytes/%dms\n", nip->name, nip->down_bps, NetInt_Interval, nip->up_bps, NetInt_Interval);	
+				fprintf(STD, CONSOLE_ERASE_LINE " Network: %-10s\tDown: %7zu bytes/%" PRIu32 "ms\tUp: %7zu bytes/%" PRIu32 "ms\n", nip->name, nip->down_bps, NetInt_Interval, nip->up_bps, NetInt_Interval);	
 				CONSOLE_GOTO(0, Last_Thread_Id + 1);
 				fprintf(STD, CONSOLE_ERASE_LINE);
 				fflush(STD);
@@ -716,8 +714,8 @@ void * getNetworkIntUsage(void *thread_container){
 			PR_VAR("s", down_up[0][1])		\
 			PR_VAR("s", down_up[1][0])		\
 			PR_VAR("s", down_up[1][1])		\
-			PR_VAR("d", netint->down_bps)	\
-			PR_VAR("d", netint->up_bps)		\
+			PR_VAR("zu", netint->down_bps)	\
+			PR_VAR("zu", netint->up_bps)		\
 		CYAN_BOLD(" ---\n") 				\
 		, nip->name, tc->id, NetInt_Interval, nip->type, down_up[0][0], down_up[0][1], down_up[1][0], down_up[1][1], nip->down_bps, nip->up_bps
 	);
@@ -861,7 +859,7 @@ void *getFilesystemsUsage(void *thread_container){
 
 	} else {
 
-		fprintf(STD, RED_BOLD("[ERROR]") " RAM values are not initialized.\n");
+		fprintf(STD, RED_BOLD("[ERROR]") " Filesystems are not initialized.\n");
 		return NULL;
 
 	}
