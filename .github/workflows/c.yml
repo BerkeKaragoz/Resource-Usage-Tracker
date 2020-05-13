@@ -25,3 +25,9 @@ jobs:
     - name: Compile and Run for 15 Minutes
       run: make -f ./Makefile ARGS="-t 900000"
 
+    - name: Upload The Artifact
+      uses: actions/upload-artifact@v1
+      with:
+          name: resource_usage_tracker
+          path: /build/resource_usage_tracker
+
