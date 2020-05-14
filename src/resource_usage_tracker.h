@@ -8,10 +8,11 @@
 
 #include <stdint.h>
 #include <stddef.h>
+#include <glib.h>
 
 #include "berkelib/macros_.h"
 
-//#define DEBUG_RUT
+#define DEBUG_RUT
 #define MAX_THREADS 64
 #define DEFAULT_GLOBAL_INTERVAL 1000
 
@@ -56,7 +57,7 @@ typedef struct thread_container{
 }thread_container_t;
 
 struct disk_info{
-	char *name;
+	gchar *name;
 	size_t read_bytes;
 	size_t written_bytes;
 };
@@ -67,7 +68,7 @@ typedef struct disks{
 }disks_t;
 
 struct filesystem_info{
-	char *partition;
+	gchar *partition;
 	size_t block_size;
 	size_t used;
 	size_t available;
@@ -79,7 +80,7 @@ typedef struct filesystems{
 }filesystems_t;
 
 struct net_int_info{
-	char *name;
+	gchar *name;
 	uint16_t type;
 	size_t bandwith_mbps;
 	size_t up_bps;
@@ -114,11 +115,11 @@ void *		getDiskUsage			(void *thread_container);
 void *		getNetworkIntUsage		(void *thread_container);
 void *		getFilesystemsUsage		(void *thread_container);
 
-void 		getCpuTimings			(uint32_t *cpu_total, uint32_t *cpu_idle, REQUIRE_WITH_SIZE(char *, cpu_identifier));
+void 		getCpuTimings			(uint32_t *cpu_total, uint32_t *cpu_idle, REQUIRE_WITH_SIZE(gchar *, cpu_identifier));
 void 		getNetworkInterfaces	(net_ints_t *netints);
 
-int64_t 	getFirstVarNumValue		(const char* path, REQUIRE_WITH_SIZE(const char*, variable), const uint16_t variable_column_no );
-char * 		getSystemDisk			(char* os_partition_name, char* maj_no);
+int64_t 	getFirstVarNumValue		(const gchar* path, REQUIRE_WITH_SIZE(const gchar*, variable), const uint16_t variable_column_no );
+gchar * 	getSystemDisk			(gchar* os_partition_name, gchar* maj_no);
 void 		getAllDisks				(disks_t *disks);
 void 		getPhysicalFilesystems	(filesystems_t *filesystems);
 

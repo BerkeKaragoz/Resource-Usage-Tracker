@@ -12,6 +12,7 @@
 #include <time.h>
 #include <pthread.h>
 #include <linux/if_arp.h>
+#include <glib.h>
 
 #include "berkelib/macros_.h"
 #include "berkelib/utils_.h"
@@ -57,26 +58,26 @@ void *timeLimit (void *thread_container){
 
 	} else {
 
-		fprintf(STD, RED_BOLD("[ERROR] Timelimit (%" PRId64 ") is lower than 1. It is set to %" PRIu32 ".\n"), (*((int64_t *) tc.parameter)), DEFAULT_GLOBAL_INTERVAL*3);
+		g_fprintf(STD, RED_BOLD("[ERROR] Timelimit (%" PRId64 ") is lower than 1. It is set to %" PRIu32 ".\n"), (*((int64_t *) tc.parameter)), DEFAULT_GLOBAL_INTERVAL*3);
 
 	}
 
 	sleep_ms(timelimit);
 
-	fprintf(STD, CONSOLE_ERASE_LINE "Timelimit is over.\n" CONSOLE_ERASE_LINE "Success!\n");
+	g_fprintf(STD, CONSOLE_ERASE_LINE "Timelimit is over.\n" CONSOLE_ERASE_LINE "Success!\n");
 	exit(EXIT_SUCCESS); //TODO cleanup
 }
 
 // Get CPU's snapshot
 // grep cpu /proc/stat
-void getCpuTimings(uint32_t *cpu_total, uint32_t *cpu_idle, REQUIRE_WITH_SIZE(char *, cpu_identifier)){
+void getCpuTimings(uint32_t *cpu_total, uint32_t *cpu_idle, REQUIRE_WITH_SIZE(gchar *, cpu_identifier)){
 
 	*cpu_total = 0;
 	*cpu_idle = 0;
 
-	const char delim[2] = " ";
+	const gchar delim[2] = " ";
 	uint8_t i = 0;
-	char 	*token 	= NULL,
+	gchar 	*token 	= NULL,
 			*temp 	= NULL;
 
 	readSearchGetFirstLine(&temp, PATH_CPU_STATS, PASS_WITH_SIZE_VAR(cpu_identifier), 1, PASS_WITH_SIZEOF(" "));
@@ -97,11 +98,11 @@ void getCpuTimings(uint32_t *cpu_total, uint32_t *cpu_idle, REQUIRE_WITH_SIZE(ch
 
 			} else {
 
-				free(temp);
+				g_free(temp);
 				*cpu_total = 0;
 				*cpu_idle = 0;
 				
-				fprintf(STD, RED_BOLD("[ERROR]") " Could NOT parse: getCpuTimings\n");
+				g_fprintf(STD, RED_BOLD("[ERROR]") " Could NOT parse: getCpuTimings\n");
 				return;
 			}
 
@@ -109,7 +110,7 @@ void getCpuTimings(uint32_t *cpu_total, uint32_t *cpu_idle, REQUIRE_WITH_SIZE(ch
 
 	}// while
 
-	free(temp);
+	g_free(temp);
 	return;
 }
 
@@ -126,7 +127,7 @@ void *getCpuUsage(void *thread_container){
 	if ( Cpu_Interval < 10 ){//todo if 0 do not track
 
 		Cpu_Interval = DEFAULT_GLOBAL_INTERVAL;
-		fprintf(STD, RED_BOLD("[ERROR] CPU Interval is lower than 10ms. It is set to %" PRIu32 ".\n"), DEFAULT_GLOBAL_INTERVAL);
+		g_fprintf(STD, RED_BOLD("[ERROR] CPU Interval is lower than 10ms. It is set to %" PRIu32 ".\n"), DEFAULT_GLOBAL_INTERVAL);
 
 	}
 
@@ -142,9 +143,9 @@ void *getCpuUsage(void *thread_container){
 	if ( !(Program_Flag & pf_No_CLI_Output) ){
 
 		CONSOLE_GOTO(0, tc->id);
-		fprintf(STD, CONSOLE_ERASE_LINE " CPU Usage: \tWaiting for %" PRIu32 "ms...\n", Cpu_Interval);	
+		g_fprintf(STD, CONSOLE_ERASE_LINE " CPU Usage: \tWaiting for %" PRIu32 "ms...\n", Cpu_Interval);	
 		CONSOLE_GOTO(0, Last_Thread_Id + 1);
-		fprintf(STD, CONSOLE_ERASE_LINE);
+		g_fprintf(STD, CONSOLE_ERASE_LINE);
 		fflush(STD);
 
 	}//
@@ -165,7 +166,7 @@ void *getCpuUsage(void *thread_container){
 
 		uint32_t prev_total	= 0, 
 				 prev_idle	= 0;
-		float 	 usage 		= 0.0;
+		gfloat 	 usage 		= 0.0;
 
 		while( Program_State & ps_Running ){
 
@@ -176,13 +177,13 @@ void *getCpuUsage(void *thread_container){
 
 			getCpuTimings(&total, &idle, PASS_WITH_SIZEOF("cpu"));
 		
-			usage = 100.0 * ( 1.0 - (float)(idle - prev_idle) / (float)(total - prev_total) );
+			usage = 100.0 * ( 1.0 - (gfloat)(idle - prev_idle) / (gfloat)(total - prev_total) );
 			
 			// Check Usage if it is corrupted
 			if ( isnan(usage) ){
 
 				usage = 0.0;		
-				fprintf(STD, YELLOW_BOLD("[Warning]") " CPU usage is NaN, CPU's total values are unchanged.\n");
+				g_fprintf(STD, YELLOW_BOLD("[Warning]") " CPU usage is NaN, CPU's total values are unchanged.\n");
 
 			}
 
@@ -190,15 +191,15 @@ void *getCpuUsage(void *thread_container){
 			if ( !(Program_Flag & pf_No_CLI_Output) ){
 
 				CONSOLE_GOTO(0, tc->id);
-				fprintf(STD, CONSOLE_ERASE_LINE " CPU Usage: %7.2f%%\n", usage);
+				g_fprintf(STD, CONSOLE_ERASE_LINE " CPU Usage: %7.2f%%\n", usage);
 				CONSOLE_GOTO(0, Last_Thread_Id + 1);
-				fprintf(STD, CONSOLE_ERASE_LINE);
+				g_fprintf(STD, CONSOLE_ERASE_LINE);
 				fflush(STD);
 
 			}
 
 #ifdef DEBUG_RUT
-			fprintf(STD,
+			g_fprintf(STD,
 				CYAN_BOLD(" --- getCpuUsage() --- Thread: %d\n")	\
 					PR_VAR("2.2f", USAGE)			\
 					PR_VAR(PRId32, Cpu_Interval)			\
@@ -218,7 +219,7 @@ void *getCpuUsage(void *thread_container){
 
 	} else {
 
-		fprintf(STD, RED_BOLD("[ERROR]") " CPU Timings are not initialized.\n");
+		g_fprintf(STD, RED_BOLD("[ERROR]") " CPU Timings are not initialized.\n");
 		return NULL;
 
 	}
@@ -227,10 +228,10 @@ void *getCpuUsage(void *thread_container){
 }
 
 // Find the first VARIABLE in PATH and return its numeric value
-int64_t getFirstVarNumValue( const char* path, REQUIRE_WITH_SIZE(const char*, variable), const uint16_t variable_column_no ){
+int64_t getFirstVarNumValue( const gchar* path, REQUIRE_WITH_SIZE(const gchar*, variable), const uint16_t variable_column_no ){
 	uint64_t output = 0;
-	const char delim[2] = " ";
-	char 	*token 	= NULL,
+	const gchar delim[2] = " ";
+	gchar 	*token 	= NULL,
 			*temp 	= NULL;
 
 	readSearchGetFirstLine(&temp, path, PASS_WITH_SIZE_VAR(variable), variable_column_no, PASS_WITH_SIZEOF(delim));
@@ -242,13 +243,13 @@ int64_t getFirstVarNumValue( const char* path, REQUIRE_WITH_SIZE(const char*, va
 	if (token) {
 		output = atoll(token) * KILOBYTE; // Convert to BYTE
 	} else {
-		fprintf(STD, RED_BOLD("[ERROR]") " Could NOT parse the value of: "RED_BOLD("%s")"\n", variable);
+		g_fprintf(STD, RED_BOLD("[ERROR]") " Could NOT parse the value of: "RED_BOLD("%s")"\n", variable);
 		return 0;
 	}
 #ifdef DEBUG_RUT
-	fprintf(STD, CYAN_BOLD("getFirstVarNumValue()")" | %s = %" PRId64 "\n", variable, output);
+	g_fprintf(STD, CYAN_BOLD("getFirstVarNumValue()")" | %s = %" PRId64 "\n", variable, output);
 #endif
-	free(temp);
+	g_free(temp);
 	return output;
 }
 
@@ -282,16 +283,16 @@ void *getRamUsage(void *thread_container){
 
 				pthread_mutex_lock(&Ram_Mutex);
 				CONSOLE_GOTO(0, tc->id);
-				fprintf(STD, CONSOLE_ERASE_LINE " RAM:\t\t%" PRId64 " / %" PRId64 "\n", usage, capacity);	
+				g_fprintf(STD, CONSOLE_ERASE_LINE " RAM:\t\t%" PRId64 " / %" PRId64 "\n", usage, capacity);	
 				CONSOLE_GOTO(0, Last_Thread_Id + 1);
-				fprintf(STD, CONSOLE_ERASE_LINE);
+				g_fprintf(STD, CONSOLE_ERASE_LINE);
 				fflush(STD);
 				pthread_mutex_unlock(&Ram_Mutex);
 
 			}
 
 #ifdef DEBUG_RUT
-	fprintf(STD,
+	g_fprintf(STD,
 		CYAN_BOLD(" --- getRamUsage() --- Thread: %d\n") \
 			PR_VAR(PRIu32, Ram_Interval)	\
 			PR_VAR(PRId64, usage)		\
@@ -308,7 +309,7 @@ void *getRamUsage(void *thread_container){
 
 	} else {
 
-		fprintf(STD, RED_BOLD("[ERROR]") " RAM values are not initialized.\n");
+		g_fprintf(STD, RED_BOLD("[ERROR]") " RAM values are not initialized.\n");
 		return NULL;
 
 	}
@@ -317,12 +318,12 @@ void *getRamUsage(void *thread_container){
 }
 
 // Get the current OS disk
-char* getSystemDisk(char* os_partition_name, char* maj_no){
+gchar* getSystemDisk(gchar* os_partition_name, gchar* maj_no){
 
 	os_partition_name = NULL;
 	maj_no = NULL;
 	
-	char 	*output = NULL,
+	gchar 	*output = NULL,
 			*temp 	= NULL;
 
 	readSearchGetFirstLine(&temp, PATH_MOUNT_STATS, PASS_WITH_SIZEOF("/"), 5, PASS_WITH_SIZEOF(" "));
@@ -334,8 +335,8 @@ char* getSystemDisk(char* os_partition_name, char* maj_no){
 		PASS_WITH_SIZEOF(" ")
 	);
 
-	free(temp);
-	temp = (char *) malloc (sizeof(char));
+	g_free(temp);
+	temp = (gchar *) g_malloc (sizeof(gchar));
 
 	const uint16_t os_partition_name_size = leftTrimTill(os_partition_name, '/'); // Trim path
 	readSearchGetFirstLine(&temp, PATH_DISK_STATS, PASS_WITH_SIZE_VAR(os_partition_name), 3, PASS_WITH_SIZEOF(" "));
@@ -347,8 +348,8 @@ char* getSystemDisk(char* os_partition_name, char* maj_no){
 		PASS_WITH_SIZEOF(" ")
 	);
 
-	free(temp);
-	temp = (char *) malloc (sizeof(char));
+	g_free(temp);
+	temp = (gchar *) g_malloc (sizeof(gchar));
 
 	readSearchGetFirstLine(&temp, PATH_DISK_STATS, PASS_WITH_SIZEOF(maj_no), 1, PASS_WITH_SIZEOF(" "));
 
@@ -359,10 +360,10 @@ char* getSystemDisk(char* os_partition_name, char* maj_no){
 		PASS_WITH_SIZEOF(" ")
 	);
 
-	free(temp);
+	g_free(temp);
 
 #ifdef DEBUG_RUT
-	fprintf(STD, CYAN_BOLD("getSystemDisk()")" | output = %s | os_partition_name = %s | maj_no = %s\n", output, os_partition_name, maj_no);
+	g_fprintf(STD, CYAN_BOLD("getSystemDisk()")" | output = %s | os_partition_name = %s | maj_no = %s\n", output, os_partition_name, maj_no);
 #endif
 
 	return output;
@@ -383,16 +384,16 @@ void *getDiskUsage(void *thread_container){
 *	Defining Variables
 */
 
-	char *input_cmd = (char *)malloc(
-		sizeof(dip->name) * sizeof(char) + sizeof("awk '$3 == \"\" {print $6\"\\t\"$10}' /proc/diskstats")
+	gchar *input_cmd = (gchar *)g_malloc(
+		sizeof(dip->name) * sizeof(gchar) + sizeof("awk '$3 == \"\" {print $6\"\\t\"$10}' /proc/diskstats")
 	);
 
-	strcpy(input_cmd, "awk '$3 == \"");
+	g_stpcpy(input_cmd, "awk '$3 == \"");
 	strcat(input_cmd, dip->name);
 	strcat(input_cmd, "\" {print $6\"\\t\"$10}' /proc/diskstats");
 
 	size_t temp_size = 0;
-	char ***read_write 	= ( char *** ) malloc ( sizeof(char **) * 2 );
+	gchar ***read_write 	= ( gchar *** ) g_malloc ( sizeof(gchar **) * 2 );
 
 /*
 *	Initialize I/O Values
@@ -404,13 +405,12 @@ void *getDiskUsage(void *thread_container){
 	if ( !(Program_Flag & pf_No_CLI_Output) ){
 
 		CONSOLE_GOTO(0, tc->id);
-		fprintf(STD, CONSOLE_ERASE_LINE " Disk: %-10s\tWaiting for %" PRIu32 "ms...\n", dip->name, Disk_Interval);	
+		g_fprintf(STD, CONSOLE_ERASE_LINE " Disk: %-10s\tWaiting for %" PRIu32 "ms...\n", dip->name, Disk_Interval);	
 		CONSOLE_GOTO(0, Last_Thread_Id + 1);
-		fprintf(STD, CONSOLE_ERASE_LINE);
+		g_fprintf(STD, CONSOLE_ERASE_LINE);
 		fflush(STD);
 
 	}//
-
 	str_split(read_write, run_command(input_cmd), '\t', &temp_size);
 	Init_State |= is_Disk_io;
 
@@ -439,15 +439,15 @@ void *getDiskUsage(void *thread_container){
 			if ( !(Program_Flag & pf_No_CLI_Output) ){
 
 				CONSOLE_GOTO(0, tc->id);
-				fprintf(STD, CONSOLE_ERASE_LINE " Disk: %-10s\tRead: %7zu bytes/%" PRIu32 "ms\tWrite: %7zu bytes/%" PRIu32 "ms\n", dip->name, dip->read_bytes, Disk_Interval, dip->written_bytes, Disk_Interval);	
+				g_fprintf(STD, CONSOLE_ERASE_LINE " Disk: %-10s\tRead: %7zu bytes/%" PRIu32 "ms\tWrite: %7zu bytes/%" PRIu32 "ms\n", dip->name, dip->read_bytes, Disk_Interval, dip->written_bytes, Disk_Interval);	
 				CONSOLE_GOTO(0, Last_Thread_Id + 1);
-				fprintf(STD, CONSOLE_ERASE_LINE);
+				g_fprintf(STD, CONSOLE_ERASE_LINE);
 				fflush(STD);
 
 			}
 
 #ifdef DEBUG_RUT
-	fprintf(STD,
+	g_fprintf(STD,
 		CYAN_BOLD(" --- getDiskUsage(")"%s"CYAN_BOLD(") --- Thread: %d\n") \
 			PR_VAR("d", Disk_Interval)		\
 			PR_VAR("s", read_write[0][0])	\
@@ -470,16 +470,16 @@ void *getDiskUsage(void *thread_container){
 
 	} else {
 
-		free(input_cmd);
-		free(read_write);
+		g_free(input_cmd);
+		g_free(read_write);
 
-		fprintf(STD, RED_BOLD("[ERROR]") " Disk I/O values are not initialized.\n");
+		g_fprintf(STD, RED_BOLD("[ERROR]") " Disk I/O values are not initialized.\n");
 		return NULL;
 
 	}
 
-	free(input_cmd);
-	free(read_write);
+	g_free(input_cmd);
+	g_free(read_write);
 	return NULL;
 }
 
@@ -487,7 +487,7 @@ void *getDiskUsage(void *thread_container){
 // Get disks names and maj if minor no is == 0
 // $ cat "PATH_DISK_STATS" | awk '$2 == 0 {print $3}'
 void getAllDisks(disks_t *disks){
-	char **temp = NULL;
+	gchar **temp = NULL;
 
 	str_split(&temp , run_command("awk '$2 == 0 {print $3}' "PATH_DISK_STATS), '\n', (size_t *) &disks->count);
 
@@ -511,20 +511,20 @@ void getAllDisks(disks_t *disks){
 	// LLUN fi eteleD
 
 	for (i = 0; i < disks->count; i++){
-		(*(disks + i)).info = (struct disk_info *)malloc(sizeof(struct disk_info));
+		(*(disks + i)).info = (struct disk_info *)g_malloc(sizeof(struct disk_info));
 		(*((*disks).info + i)).name = *(temp + i);
 	}
 	
-	free(temp);
+	g_free(temp);
 
 #ifdef DEBUG_RUT
-	fprintf(STD, CYAN_BOLD(" --- getAllDisks() ---\n"));
+	g_fprintf(STD, CYAN_BOLD(" --- getAllDisks() ---\n"));
 	SOUT("d", disks->count);
-	fprintf(STD, CYAN_BOLD("Disk Names:\n"));
+	g_fprintf(STD, CYAN_BOLD("Disk Names:\n"));
 	for(uint16_t i = 0 ; i < disks->count; i++){
-		fprintf(STD, CYAN_BOLD("-")"%s\n", (*((*disks).info + i)).name);
+		g_fprintf(STD, CYAN_BOLD("-")"%s\n", (*((*disks).info + i)).name);
 	}
-	fprintf(STD, CYAN_BOLD(" ---\n"));
+	g_fprintf(STD, CYAN_BOLD(" ---\n"));
 #endif
 }
 
@@ -532,7 +532,7 @@ void getAllDisks(disks_t *disks){
 void getNetworkInterfaces(net_ints_t *netints){
 
 	// Get Interface List
-	char **netints_temp = NULL;
+	gchar **netints_temp = NULL;
 
 	str_split(&netints_temp, run_command("ls /sys/class/net/"), '\n', (size_t *) &netints->count);
 
@@ -556,21 +556,21 @@ void getNetworkInterfaces(net_ints_t *netints){
 	// LLUN fi eteleD
 
 	for (uint16_t i = 0; i < netints->count; i++){
-		(*(netints + i)).info = (void *)malloc(sizeof(struct net_int_info));
+		(*(netints + i)).info = (void *)g_malloc(sizeof(struct net_int_info));
 		(*((*netints).info + i)).name = *(netints_temp + i);
 	}
 
-	free(netints_temp);
+	g_free(netints_temp);
 
 	// Get Specs
-	char *path = NULL;
+	gchar *path = NULL;
 	FILE *net_file = NULL;
 
 	uint16_t filtered_index = 0, arphdr_no = UINT16_MAX;
 	for (uint16_t i = 0; i < netints->count; i++){
 		// Get Type
 		path = realloc(path, sizeof("/sys/class/net//type") + sizeof((*((*netints).info + i)).name));
-		strcpy(path, "/sys/class/net/");
+		g_stpcpy(path, "/sys/class/net/");
 		strcat(path, (*((*netints).info + i)).name);
 		strcat(path, "/type");
 
@@ -587,7 +587,7 @@ void getNetworkInterfaces(net_ints_t *netints){
 
 			// Get Bandwith
 			path = realloc(path, sizeof("/sys/class/net//speed") + sizeof((*((*netints).info + filtered_index)).name));
-			strcpy(path, "/sys/class/net/");
+			g_stpcpy(path, "/sys/class/net/");
 			strcat(path, (*((*netints).info + filtered_index)).name);
 			strcat(path, "/speed");
 
@@ -599,17 +599,17 @@ void getNetworkInterfaces(net_ints_t *netints){
 			(netints->count)--;
 		}
 	}
-	free(path);
+	g_free(path);
 	fclose(net_file);
 
 #ifdef DEBUG_RUT
-	fprintf(STD, CYAN_BOLD(" --- getNetworkInterfaces() ---\n"));
+	g_fprintf(STD, CYAN_BOLD(" --- getNetworkInterfaces() ---\n"));
 	SOUT("d", netints->count);
-	fprintf(STD, CYAN_BOLD("Network Interfaces:\n"));
+	g_fprintf(STD, CYAN_BOLD("Network Interfaces:\n"));
 	for(uint16_t i = 0 ; i < netints->count; i++){
-		fprintf(STD, CYAN_BOLD("- Name:") " %s\n\t" CYAN_BOLD("Type:") " %d\n\t" CYAN_BOLD("Bandwith:") " %lu Mbps\n", (*((*netints).info + i)).name, (*((*netints).info + i)).type, (*((*netints).info + i)).bandwith_mbps);
+		g_fprintf(STD, CYAN_BOLD("- Name:") " %s\n\t" CYAN_BOLD("Type:") " %d\n\t" CYAN_BOLD("Bandwith:") " %lu Mbps\n", (*((*netints).info + i)).name, (*((*netints).info + i)).type, (*((*netints).info + i)).bandwith_mbps);
 	}
-	fprintf(STD, CYAN_BOLD(" ---\n"));
+	g_fprintf(STD, CYAN_BOLD(" ---\n"));
 #endif
 
 }
@@ -642,15 +642,15 @@ void * getNetworkIntUsage(void *thread_container){
 	
 	str_ptrlen(&temp_size, nip->name);
 
-	char *input_cmd = (char *)malloc(
-		temp_size * sizeof(char) + sizeof("tail -n +3 /proc/net/dev | grep | awk '{print $2\" \"$10}'")
+	gchar *input_cmd = (gchar *)g_malloc(
+		temp_size * sizeof(gchar) + sizeof("tail -n +3 /proc/net/dev | grep | awk '{print $2\" \"$10}'")
 	);
 
-	strcpy(input_cmd, "tail -n +3 /proc/net/dev | grep ");
+	g_stpcpy(input_cmd, "tail -n +3 /proc/net/dev | grep ");
 	strcat(input_cmd, nip->name);
 	strcat(input_cmd, " | awk '{print $2\" \"$10}'");
 
-	char ***down_up = (char ***)malloc(sizeof(char **)*2);
+	gchar ***down_up = (gchar ***)g_malloc(sizeof(gchar **)*2);
 	temp_size = 0;
 
 /*
@@ -663,9 +663,9 @@ void * getNetworkIntUsage(void *thread_container){
 	if ( !(Program_Flag & pf_No_CLI_Output) ){
 
 		CONSOLE_GOTO(0, tc->id);
-		fprintf(STD, CONSOLE_ERASE_LINE " Network: %-10s\tWaiting for %" PRIu32 "ms...\n", nip->name, NetInt_Interval);	
+		g_fprintf(STD, CONSOLE_ERASE_LINE " Network: %-10s\tWaiting for %" PRIu32 "ms...\n", nip->name, NetInt_Interval);	
 		CONSOLE_GOTO(0, Last_Thread_Id + 1);
-		fprintf(STD, CONSOLE_ERASE_LINE);
+		g_fprintf(STD, CONSOLE_ERASE_LINE);
 		fflush(STD);
 
 	}//
@@ -698,15 +698,15 @@ void * getNetworkIntUsage(void *thread_container){
 			if ( !(Program_Flag & pf_No_CLI_Output) ){
 
 				CONSOLE_GOTO(0, tc->id);
-				fprintf(STD, CONSOLE_ERASE_LINE " Network: %-10s\tDown: %7zu bytes/%" PRIu32 "ms\tUp: %7zu bytes/%" PRIu32 "ms\n", nip->name, nip->down_bps, NetInt_Interval, nip->up_bps, NetInt_Interval);	
+				g_fprintf(STD, CONSOLE_ERASE_LINE " Network: %-10s\tDown: %7zu bytes/%" PRIu32 "ms\tUp: %7zu bytes/%" PRIu32 "ms\n", nip->name, nip->down_bps, NetInt_Interval, nip->up_bps, NetInt_Interval);	
 				CONSOLE_GOTO(0, Last_Thread_Id + 1);
-				fprintf(STD, CONSOLE_ERASE_LINE);
+				g_fprintf(STD, CONSOLE_ERASE_LINE);
 				fflush(STD);
 			}
 
 #ifdef DEBUG_RUT
 
-	fprintf(STD,
+	g_fprintf(STD,
 		CYAN_BOLD(" --- getNetworkIntUsage(") "%s" CYAN_BOLD(") --- Thread: %d\n") \
 			PR_VAR("d", interval)			\
 			PR_VAR("d", type)				\
@@ -730,23 +730,23 @@ void * getNetworkIntUsage(void *thread_container){
 		}
 	}  else {
 
-		free(input_cmd);
-		free(down_up);
+		g_free(input_cmd);
+		g_free(down_up);
 
-		fprintf(STD, RED_BOLD("[ERROR]") " Disk I/O values are not initialized.\n");
+		g_fprintf(STD, RED_BOLD("[ERROR]") " Disk I/O values are not initialized.\n");
 		return NULL;
 
 	}
 
-	free(input_cmd);
-	free(down_up);
+	g_free(input_cmd);
+	g_free(down_up);
 	return NULL;
 	
 }
 
 // df --type btrfs --type ext4 --type ext3 --type ext2 --type vfat --type iso9660 --block-size=1 | tail -n +2 | awk {'print $1" "$2" "$3" "$4'}
 void getPhysicalFilesystems(filesystems_t *filesystems){
-	char **filesystems_temp = NULL;
+	gchar **filesystems_temp = NULL;
 	
 	str_split(&filesystems_temp, run_command("df --type btrfs --type ext4 --type ext3 --type ext2 --type vfat --type iso9660 --block-size=1 | tail -n +2 | awk {'print $1\" \"$2\" \"$3\" \"$4'}"), '\n', (size_t *) &filesystems->count);
 
@@ -769,9 +769,9 @@ void getPhysicalFilesystems(filesystems_t *filesystems){
 	}//for
 	// LLUN fi eteleD
 	size_t info_field_count = 0;
-	char **fsi_temp = NULL;
+	gchar **fsi_temp = NULL;
 	for (i = 0; i < filesystems->count; i++){
-		(*(filesystems + i)).info = (struct filesystem_info *)malloc(sizeof(struct filesystem_info));
+		(*(filesystems + i)).info = (struct filesystem_info *)g_malloc(sizeof(struct filesystem_info));
 		str_split(&fsi_temp, *(filesystems_temp + i), ' ', &info_field_count );
 		(*((*filesystems).info + i)).partition 	= *(fsi_temp + 0);
 		(*((*filesystems).info + i)).block_size = (size_t) *(fsi_temp + 1); // as 1-byte sizes
@@ -779,20 +779,20 @@ void getPhysicalFilesystems(filesystems_t *filesystems){
 		(*((*filesystems).info + i)).available 	= (size_t) *(fsi_temp + 3);
 	}
 
-	free(fsi_temp);
-	free(filesystems_temp);
+	g_free(fsi_temp);
+	g_free(filesystems_temp);
 
 #ifdef DEBUG_RUT
-		fprintf(STD, CYAN_BOLD(" --- getPhysicalFilesystems() ---\n"));
+		g_fprintf(STD, CYAN_BOLD(" --- getPhysicalFilesystems() ---\n"));
 		SOUT("d", filesystems->count);
-		fprintf(STD, CYAN_BOLD("Filesystems:\n"));
+		g_fprintf(STD, CYAN_BOLD("Filesystems:\n"));
 		for(uint16_t i = 0 ; i < filesystems->count; i++){
-			fprintf(STD, CYAN_BOLD("- Partition: ")"\t%s\n", (*((*filesystems).info + i)).partition);
-			fprintf(STD, CYAN_BOLD("- Byte blocks: ")"\t%s\n", (*((*filesystems).info + i)).block_size);
-			fprintf(STD, CYAN_BOLD("- Used: ")"\t%s\n", (*((*filesystems).info + i)).used);
-			fprintf(STD, CYAN_BOLD("- Available: ")"\t%s\n", (*((*filesystems).info + i)).available);
+			g_fprintf(STD, CYAN_BOLD("- Partition: ")"\t%s\n", (*((*filesystems).info + i)).partition);
+			g_fprintf(STD, CYAN_BOLD("- Byte blocks: ")"\t%s\n", (*((*filesystems).info + i)).block_size);
+			g_fprintf(STD, CYAN_BOLD("- Used: ")"\t%s\n", (*((*filesystems).info + i)).used);
+			g_fprintf(STD, CYAN_BOLD("- Available: ")"\t%s\n", (*((*filesystems).info + i)).available);
 		}
-		fprintf(STD, CYAN_BOLD(" ---\n"));
+		g_fprintf(STD, CYAN_BOLD(" ---\n"));
 #endif
 
 }
@@ -832,15 +832,15 @@ void *getFilesystemsUsage(void *thread_container){
 				pthread_mutex_lock(&File_sys_Mutex);
 
 				CONSOLE_GOTO(0, Last_Thread_Id + 2);
-				fprintf(STD, "Filesystems:");
+				g_fprintf(STD, "Filesystems:");
 
 				for(uint32_t i = 0; i < fss->count; i++){
 					CONSOLE_GOTO(0, Last_Thread_Id + 3 + i);
-					fprintf(STD, CONSOLE_ERASE_LINE " %s:\t%" PRIu64 " / %" PRIu64 "\n", (fss->info + i)->partition, (fss->info + i)->used, ( (fss->info + i)->used + (fss->info + i)->available) );
+					g_fprintf(STD, CONSOLE_ERASE_LINE " %s:\t%" PRIu64 " / %" PRIu64 "\n", (fss->info + i)->partition, (fss->info + i)->used, ( (fss->info + i)->used + (fss->info + i)->available) );
 				}
 
 				CONSOLE_GOTO(0, Last_Thread_Id + 1);
-				fprintf(STD, CONSOLE_ERASE_LINE);
+				g_fprintf(STD, CONSOLE_ERASE_LINE);
 
 				fflush(STD);
 
@@ -859,7 +859,7 @@ void *getFilesystemsUsage(void *thread_container){
 
 	} else {
 
-		fprintf(STD, RED_BOLD("[ERROR]") " Filesystems are not initialized.\n");
+		g_fprintf(STD, RED_BOLD("[ERROR]") " Filesystems are not initialized.\n");
 		return NULL;
 
 	}

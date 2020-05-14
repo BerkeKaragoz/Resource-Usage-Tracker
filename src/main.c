@@ -8,6 +8,7 @@
 #include <stdint.h>
 #include <inttypes.h>
 #include <pthread.h>
+#include <glib.h>
 
 #include "resource_usage_tracker.h"
 #include "berkelib/macros_.h"
@@ -48,7 +49,7 @@ int main (int argc, char * const argv[]){
 		switch (opt) {
 			case 'h':
 
-				fprintf(STD, "Usage: %s [-" _ARGS_ "] [value]\n", argv[0]);
+				g_fprintf(STD, "Usage: %s [-" _ARGS_ "] [value]\n", argv[0]);
 				exit(EXIT_SUCCESS);
 
 			break;
@@ -97,7 +98,7 @@ int main (int argc, char * const argv[]){
 			*/
 
 			default:				
-				fprintf(STD, "Usage: %s [-" _ARGS_ "] [value]\n", argv[0]);
+				g_fprintf(STD, "Usage: %s [-" _ARGS_ "] [value]\n", argv[0]);
 				exit(EXIT_FAILURE);
 		}//switch
 	}
@@ -111,7 +112,7 @@ int main (int argc, char * const argv[]){
 	}
 	else if (disks.count = 0)
 	{
-		fprintf(STD, RED_BOLD("[ERROR]")" Could not get the disks!\n");
+		g_fprintf(STD, RED_BOLD("[ERROR]")" Could not get the disks!\n");
 		exit(EXIT_FAILURE);
 	}
 	
@@ -120,8 +121,8 @@ int main (int argc, char * const argv[]){
 *	Allocate
 */
 
-	disk_io_tcs = malloc(disks.count   * sizeof(thread_container_t));
-	net_int_tcs = malloc(netints.count * sizeof(thread_container_t));
+	disk_io_tcs = g_malloc(disks.count   * sizeof(thread_container_t));
+	net_int_tcs = g_malloc(netints.count * sizeof(thread_container_t));
 
 /*
 *	Create
@@ -185,8 +186,8 @@ int main (int argc, char * const argv[]){
 */
 
 	pthread_exit(NULL);
-	free(disk_io_tcs);
-	free(net_int_tcs);
+	g_free(disk_io_tcs);
+	g_free(net_int_tcs);
 	Program_State = ps_Stopped;
 
 #ifdef DEBUG_RUT
