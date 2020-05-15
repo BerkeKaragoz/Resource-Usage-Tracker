@@ -8,7 +8,7 @@
 
 #include <stdint.h>
 #include <stddef.h>
-#include <glib.h>
+#include <glib/gtypes.h>
 
 #include "berkelib/macros_.h"
 
@@ -53,8 +53,10 @@ enum initialization_states{
 typedef struct thread_container{
 	pthread_t thread;
 	uint16_t id;
+	uint32_t interval;
+	gfloat alert_usage;
 	void *parameter;
-}thread_container_t;
+}thread_container_ty;
 
 struct disk_info{
 	gchar *name;
@@ -65,7 +67,7 @@ struct disk_info{
 typedef struct disks{
 	struct disk_info *info;
 	uint16_t count;
-}disks_t;
+}disks_ty;
 
 struct filesystem_info{
 	gchar *partition;
@@ -77,7 +79,7 @@ struct filesystem_info{
 typedef struct filesystems{
 	struct filesystem_info *info;
 	uint16_t count;
-}filesystems_t;
+}filesystems_ty;
 
 struct net_int_info{
 	gchar *name;
@@ -90,16 +92,10 @@ struct net_int_info{
 typedef struct network_interfaces{
 	struct net_int_info *info;
 	uint16_t count;
-}net_ints_t;
+}net_ints_ty;
 
 // Globals
 extern uint16_t Last_Thread_Id;
-
-extern uint32_t Cpu_Interval,
-				Ram_Interval,
-				Disk_Interval,
-				NetInt_Interval,
-				FileSys_Interval;
 
 extern enum program_flags			Program_Flag;
 extern enum program_states 			Program_State;
@@ -116,12 +112,12 @@ void *		getNetworkIntUsage		(void *thread_container);
 void *		getFilesystemsUsage		(void *thread_container);
 
 void 		getCpuTimings			(uint32_t *cpu_total, uint32_t *cpu_idle, REQUIRE_WITH_SIZE(gchar *, cpu_identifier));
-void 		getNetworkInterfaces	(net_ints_t *netints);
+void 		getNetworkInterfaces	(net_ints_ty *netints);
 
 int64_t 	getFirstVarNumValue		(const gchar* path, REQUIRE_WITH_SIZE(const gchar*, variable), const uint16_t variable_column_no );
 gchar * 	getSystemDisk			(gchar* os_partition_name, gchar* maj_no);
-void 		getAllDisks				(disks_t *disks);
-void 		getPhysicalFilesystems	(filesystems_t *filesystems);
+void 		getAllDisks				(disks_ty *disks);
+void 		getPhysicalFilesystems	(filesystems_ty *filesystems);
 
 
 #endif

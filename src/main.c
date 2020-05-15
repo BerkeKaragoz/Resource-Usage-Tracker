@@ -31,19 +31,31 @@ int main (int argc, char * const argv[]){
 	Program_State |= ps_Initialized;
 	Program_State |= ps_Running;
 
-	thread_container_t  *disk_io_tcs,
+	thread_container_ty *disk_io_tcs,
 						*net_int_tcs,
 						cpu_tc,
 						ram_tc,
 						fss_tc;
 
-	disks_t disks;
-	filesystems_t filesystems;
-	net_ints_t netints;
+	disks_ty disks;
+	filesystems_ty filesystems;
+	net_ints_ty netints;
+
+	uint32_t	cpu_interval	= DEFAULT_CPU_INTERVAL,
+				ram_interval	= DEFAULT_RAM_INTERVAL,
+				disk_interval	= DEFAULT_DISK_INTERVAL,
+				netint_interval = DEFAULT_NETINT_INTERVAL,
+				filesys_interval= DEFAULT_FILESYS_INTERVAL;
+	
+	uint32_t	cpu_alert_usage		= 100.0,
+			ram_alert_usage		= 100.0,
+			disk_alert_usage	= 100.0,
+			netint_alert_usage 	= 100.0,
+			filesys_alert_usage	= 100.0;
 
 	extern char* optarg;
 	int32_t opt;
-#define _ARGS_ 	"ht:Tc:Cr:Rf:Fd:Dn:N"
+#define _ARGS_ 	"ht:c:C:r:f:d:n:"
 	while ((opt = getopt(argc, argv, _ARGS_)) != -1){
 
 		switch (opt) {
@@ -56,7 +68,7 @@ int main (int argc, char * const argv[]){
 			case 't':
 				{
 					int64_t timelimit_ms = INT64_MIN;
-					thread_container_t tlc;
+					thread_container_ty tlc;
 
 					str_to_int64(optarg, &timelimit_ms);
 					tlc.id = MAX_THREADS - 1;
@@ -65,29 +77,34 @@ int main (int argc, char * const argv[]){
 					pthread_create(&tlc.thread, NULL, timeLimit, &tlc);
 				}
 			break;
+			case 'C':
+				
+				str_to_int32(optarg, &cpu_alert_usage);
+
+			break;
 			case 'c':
 
-				str_to_uint32(optarg, &Cpu_Interval);
+				str_to_uint32(optarg, &cpu_interval);
 
 			break;
 			case 'r':
 
-				str_to_uint32(optarg, &Ram_Interval);
+				str_to_uint32(optarg, &ram_interval);
 
 			break;
 			case 'f':
 
-				str_to_uint32(optarg, &FileSys_Interval);
+				str_to_uint32(optarg, &filesys_interval);
 
 			break;
 			case 'd':
 
-				str_to_uint32(optarg, &Disk_Interval);
+				str_to_uint32(optarg, &disk_interval);
 
 			break;
 			case 'n':
 
-				str_to_uint32(optarg, &NetInt_Interval);
+				str_to_uint32(optarg, &netint_interval);
 
 			break;
 			
@@ -110,7 +127,7 @@ int main (int argc, char * const argv[]){
 	{
 		getSystemDisk(NULL, NULL); //System Disk
 	}
-	else if (disks.count = 0)
+	else if (disks.count == 0)
 	{
 		g_fprintf(STD, RED_BOLD("[ERROR]")" Could not get the disks!\n");
 		exit(EXIT_FAILURE);
@@ -121,8 +138,8 @@ int main (int argc, char * const argv[]){
 *	Allocate
 */
 
-	disk_io_tcs = g_malloc(disks.count   * sizeof(thread_container_t));
-	net_int_tcs = g_malloc(netints.count * sizeof(thread_container_t));
+	disk_io_tcs = g_malloc(disks.count   * sizeof(thread_container_ty));
+	net_int_tcs = g_malloc(netints.count * sizeof(thread_container_ty));
 
 /*
 *	Create
@@ -130,6 +147,7 @@ int main (int argc, char * const argv[]){
 
 	//Cpu
 	cpu_tc.id = Last_Thread_Id++;
+	cpu_tc.interval = cpu_interval;
 	cpu_tc.parameter = NULL;
 
 	pthread_create(&cpu_tc.thread, NULL, getCpuUsage, &cpu_tc); // CPU
@@ -137,6 +155,7 @@ int main (int argc, char * const argv[]){
 
 	//Ram
 	ram_tc.id = Last_Thread_Id++;
+	ram_tc.interval = ram_interval;
 	ram_tc.parameter = NULL;
 
 	pthread_create(&ram_tc.thread, NULL, getRamUsage, &ram_tc);
@@ -144,6 +163,7 @@ int main (int argc, char * const argv[]){
 
 	//Filesystems
 	fss_tc.id = Last_Thread_Id++;
+	fss_tc.interval = filesys_interval;
 	fss_tc.parameter = &filesystems;
 
 	pthread_create(&fss_tc.thread, NULL, getFilesystemsUsage, &fss_tc);
@@ -152,6 +172,7 @@ int main (int argc, char * const argv[]){
 	//Disk
 	for (uint16_t i = 0; i < disks.count; i++){ // Disks Reads/Writes
 		(*(disk_io_tcs + i)).id = Last_Thread_Id++;
+		(*(disk_io_tcs + i)).interval = disk_interval;
 		(disk_io_tcs + i) -> parameter = disks.info + i;
 
 		pthread_create( &(disk_io_tcs + i)->thread, NULL, getDiskUsage, disk_io_tcs + i );
@@ -161,6 +182,7 @@ int main (int argc, char * const argv[]){
 	//Network
 	for (uint16_t i = 0; i < netints.count; i++){ // Get Network Interface Infos
 		(*(net_int_tcs + i)).id = Last_Thread_Id++;
+		(*(net_int_tcs + i)).interval = netint_interval;
 		(net_int_tcs + i) -> parameter = netints.info + i;
 
 		pthread_create( &(net_int_tcs + i)->thread, NULL, getNetworkIntUsage, net_int_tcs + i);

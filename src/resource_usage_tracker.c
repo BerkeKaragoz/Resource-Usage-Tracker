@@ -29,11 +29,6 @@ enum program_flags			Program_Flag	= pf_None;
 enum program_states 		Program_State 	= ps_Ready;
 enum initialization_states 	Init_State 		= is_None;
 
-uint32_t		Cpu_Interval	= DEFAULT_CPU_INTERVAL,
-				Ram_Interval	= DEFAULT_RAM_INTERVAL,
-				Disk_Interval	= DEFAULT_DISK_INTERVAL,
-				NetInt_Interval = DEFAULT_NETINT_INTERVAL,
-				FileSys_Interval= DEFAULT_FILESYS_INTERVAL;
 
 pthread_mutex_t Cpu_Mutex 		= PTHREAD_MUTEX_INITIALIZER,
 				Ram_Mutex		= PTHREAD_MUTEX_INITIALIZER,
@@ -48,7 +43,7 @@ pthread_mutex_t Cpu_Mutex 		= PTHREAD_MUTEX_INITIALIZER,
 
 void *timeLimit (void *thread_container){
 
-	thread_container_t tc = *((thread_container_t *) thread_container);
+	thread_container_ty tc = *((thread_container_ty *) thread_container);
 
 	uint32_t timelimit = DEFAULT_GLOBAL_INTERVAL * 3;
 
@@ -85,7 +80,7 @@ void getCpuTimings(uint32_t *cpu_total, uint32_t *cpu_idle, REQUIRE_WITH_SIZE(gc
 	strtok(temp, delim);
 	token = strtok(NULL, delim); // skip cpu_id
 	
-	while ( token != NULL){
+	while ( token != NULL ){
 
 		*cpu_total += atol(token);
 		token = strtok(NULL, delim);
@@ -122,11 +117,11 @@ void *getCpuUsage(void *thread_container){
 *	Test The Parameter
 */
 
-	thread_container_t *tc = (thread_container_t *) thread_container;
+	thread_container_ty *tc = (thread_container_ty *) thread_container;
 
-	if ( Cpu_Interval < 10 ){//todo if 0 do not track
+	if ( tc->interval < 10 ){//todo if 0 do not track
 
-		Cpu_Interval = DEFAULT_GLOBAL_INTERVAL;
+		tc->interval = DEFAULT_GLOBAL_INTERVAL;
 		g_fprintf(STD, RED_BOLD("[ERROR] CPU Interval is lower than 10ms. It is set to %" PRIu32 ".\n"), DEFAULT_GLOBAL_INTERVAL);
 
 	}
@@ -143,7 +138,7 @@ void *getCpuUsage(void *thread_container){
 	if ( !(Program_Flag & pf_No_CLI_Output) ){
 
 		CONSOLE_GOTO(0, tc->id);
-		g_fprintf(STD, CONSOLE_ERASE_LINE " CPU Usage: \tWaiting for %" PRIu32 "ms...\n", Cpu_Interval);	
+		g_fprintf(STD, CONSOLE_ERASE_LINE " CPU Usage: \tWaiting for %" PRIu32 "ms...\n", tc->interval);	
 		CONSOLE_GOTO(0, Last_Thread_Id + 1);
 		g_fprintf(STD, CONSOLE_ERASE_LINE);
 		fflush(STD);
@@ -155,7 +150,7 @@ void *getCpuUsage(void *thread_container){
 
 	pthread_mutex_unlock(&Cpu_Mutex);
 
-	sleep_ms(Cpu_Interval);
+	sleep_ms(tc->interval);
 
 /*
 *	Get CPU Usage Till The Program Stops
@@ -206,14 +201,14 @@ void *getCpuUsage(void *thread_container){
 					PR_VAR(PRId32, delta-idle)			\
 					PR_VAR(PRId32, delta-total)
 				CYAN_BOLD(" ---\n") 				\
-				, tc->id, usage, Cpu_Interval, idle - prev_idle, total - prev_total
+				, tc->id, usage, tc->interval, idle - prev_idle, total - prev_total
 			);
 #endif
 			// tuptuO
 
 			pthread_mutex_unlock(&Cpu_Mutex);
 
-			sleep_ms(Cpu_Interval);
+			sleep_ms(tc->interval);
 
 		}
 
@@ -259,7 +254,7 @@ void *getRamUsage(void *thread_container){
 *	Parameter Conversion
 */
 
-	thread_container_t *tc = (thread_container_t *) thread_container;
+	thread_container_ty *tc = (thread_container_ty *) thread_container;
 
 /*
 *	Get RAM Capacity ( Initialize )
@@ -298,12 +293,12 @@ void *getRamUsage(void *thread_container){
 			PR_VAR(PRId64, usage)		\
 			PR_VAR(PRId64, capacity)
 		CYAN_BOLD(" ---\n") 				\
-		, tc->id, Ram_Interval, usage, capacity 
+		, tc->id, tc->interval, usage, capacity 
 	);
 #endif
 			// tuptuO
 
-			sleep_ms(Ram_Interval);
+			sleep_ms(tc->interval);
 
 		}
 
@@ -376,7 +371,7 @@ void *getDiskUsage(void *thread_container){
 *	Parameter conversion
 */
 
-	thread_container_t *tc = (thread_container_t *) thread_container;
+	thread_container_ty *tc = (thread_container_ty *) thread_container;
 
 	struct disk_info *dip = (struct disk_info *) tc->parameter;
 
@@ -405,7 +400,7 @@ void *getDiskUsage(void *thread_container){
 	if ( !(Program_Flag & pf_No_CLI_Output) ){
 
 		CONSOLE_GOTO(0, tc->id);
-		g_fprintf(STD, CONSOLE_ERASE_LINE " Disk: %-10s\tWaiting for %" PRIu32 "ms...\n", dip->name, Disk_Interval);	
+		g_fprintf(STD, CONSOLE_ERASE_LINE " Disk: %-10s\tWaiting for %" PRIu32 "ms...\n", dip->name, tc->interval);	
 		CONSOLE_GOTO(0, Last_Thread_Id + 1);
 		g_fprintf(STD, CONSOLE_ERASE_LINE);
 		fflush(STD);
@@ -416,7 +411,7 @@ void *getDiskUsage(void *thread_container){
 
 	pthread_mutex_unlock(&Disk_io_Mutex);
 
-	sleep_ms(Disk_Interval);
+	sleep_ms(tc->interval);
 
 /*
 *	Get Disk I/O Till The Program Stops
@@ -439,7 +434,7 @@ void *getDiskUsage(void *thread_container){
 			if ( !(Program_Flag & pf_No_CLI_Output) ){
 
 				CONSOLE_GOTO(0, tc->id);
-				g_fprintf(STD, CONSOLE_ERASE_LINE " Disk: %-10s\tRead: %7zu bytes/%" PRIu32 "ms\tWrite: %7zu bytes/%" PRIu32 "ms\n", dip->name, dip->read_bytes, Disk_Interval, dip->written_bytes, Disk_Interval);	
+				g_fprintf(STD, CONSOLE_ERASE_LINE " Disk: %-10s\tRead: %7zu bytes/%" PRIu32 "ms\tWrite: %7zu bytes/%" PRIu32 "ms\n", dip->name, dip->read_bytes, tc->interval, dip->written_bytes, tc->interval);	
 				CONSOLE_GOTO(0, Last_Thread_Id + 1);
 				g_fprintf(STD, CONSOLE_ERASE_LINE);
 				fflush(STD);
@@ -457,14 +452,14 @@ void *getDiskUsage(void *thread_container){
 			PR_VAR("d", dip->read_bytes)		\
 			PR_VAR("d", dip->written_bytes)	\
 		CYAN_BOLD(" ---\n") 				\
-		, dip->name, tc->id, Disk_Interval, read_write[0][0], read_write[0][1], read_write[1][0], read_write[1][1], dip->read_bytes, dip->written_bytes
+		, dip->name, tc->id, tc->interval, read_write[0][0], read_write[0][1], read_write[1][0], read_write[1][1], dip->read_bytes, dip->written_bytes
 	);
 #endif
 			// tuptuO
 
 			pthread_mutex_unlock(&Disk_io_Mutex);
 
-			sleep_ms(Disk_Interval);
+			sleep_ms(tc->interval);
 
 		}
 
@@ -486,7 +481,7 @@ void *getDiskUsage(void *thread_container){
 // Get all disks from PATH_DISK_STATS
 // Get disks names and maj if minor no is == 0
 // $ cat "PATH_DISK_STATS" | awk '$2 == 0 {print $3}'
-void getAllDisks(disks_t *disks){
+void getAllDisks(disks_ty *disks){
 	gchar **temp = NULL;
 
 	str_split(&temp , run_command("awk '$2 == 0 {print $3}' "PATH_DISK_STATS), '\n', (size_t *) &disks->count);
@@ -529,7 +524,7 @@ void getAllDisks(disks_t *disks){
 }
 
 //Alternative: tail -n +3 /proc/net/dev | awk '{print $1}' | sed 's/.$//'
-void getNetworkInterfaces(net_ints_t *netints){
+void getNetworkInterfaces(net_ints_ty *netints){
 
 	// Get Interface List
 	gchar **netints_temp = NULL;
@@ -630,7 +625,7 @@ void * getNetworkIntUsage(void *thread_container){
 *	Parameter conversion
 */
 
-	thread_container_t *tc = (thread_container_t *) thread_container;
+	thread_container_ty *tc = (thread_container_ty *) thread_container;
 
 	struct net_int_info *nip = (struct net_int_info *) tc->parameter;
 
@@ -663,7 +658,7 @@ void * getNetworkIntUsage(void *thread_container){
 	if ( !(Program_Flag & pf_No_CLI_Output) ){
 
 		CONSOLE_GOTO(0, tc->id);
-		g_fprintf(STD, CONSOLE_ERASE_LINE " Network: %-10s\tWaiting for %" PRIu32 "ms...\n", nip->name, NetInt_Interval);	
+		g_fprintf(STD, CONSOLE_ERASE_LINE " Network: %-10s\tWaiting for %" PRIu32 "ms...\n", nip->name, tc->interval);	
 		CONSOLE_GOTO(0, Last_Thread_Id + 1);
 		g_fprintf(STD, CONSOLE_ERASE_LINE);
 		fflush(STD);
@@ -675,7 +670,7 @@ void * getNetworkIntUsage(void *thread_container){
 
 	pthread_mutex_unlock(&Net_int_Mutex);
 
-	sleep_ms(NetInt_Interval);
+	sleep_ms(tc->interval);
 
 /*
 *	Get Disk I/O Till The Program Stops
@@ -698,7 +693,7 @@ void * getNetworkIntUsage(void *thread_container){
 			if ( !(Program_Flag & pf_No_CLI_Output) ){
 
 				CONSOLE_GOTO(0, tc->id);
-				g_fprintf(STD, CONSOLE_ERASE_LINE " Network: %-10s\tDown: %7zu bytes/%" PRIu32 "ms\tUp: %7zu bytes/%" PRIu32 "ms\n", nip->name, nip->down_bps, NetInt_Interval, nip->up_bps, NetInt_Interval);	
+				g_fprintf(STD, CONSOLE_ERASE_LINE " Network: %-10s\tDown: %7zu bytes/%" PRIu32 "ms\tUp: %7zu bytes/%" PRIu32 "ms\n", nip->name, nip->down_bps, tc->interval, nip->up_bps, tc->interval);	
 				CONSOLE_GOTO(0, Last_Thread_Id + 1);
 				g_fprintf(STD, CONSOLE_ERASE_LINE);
 				fflush(STD);
@@ -717,7 +712,7 @@ void * getNetworkIntUsage(void *thread_container){
 			PR_VAR("zu", netint->down_bps)	\
 			PR_VAR("zu", netint->up_bps)		\
 		CYAN_BOLD(" ---\n") 				\
-		, nip->name, tc->id, NetInt_Interval, nip->type, down_up[0][0], down_up[0][1], down_up[1][0], down_up[1][1], nip->down_bps, nip->up_bps
+		, nip->name, tc->id, tc->interval, nip->type, down_up[0][0], down_up[0][1], down_up[1][0], down_up[1][1], nip->down_bps, nip->up_bps
 	);
 
 #endif
@@ -725,7 +720,7 @@ void * getNetworkIntUsage(void *thread_container){
 
 			pthread_mutex_unlock(&Net_int_Mutex);
 
-			sleep_ms(NetInt_Interval);
+			sleep_ms(tc->interval);
 
 		}
 	}  else {
@@ -745,7 +740,7 @@ void * getNetworkIntUsage(void *thread_container){
 }
 
 // df --type btrfs --type ext4 --type ext3 --type ext2 --type vfat --type iso9660 --block-size=1 | tail -n +2 | awk {'print $1" "$2" "$3" "$4'}
-void getPhysicalFilesystems(filesystems_t *filesystems){
+void getPhysicalFilesystems(filesystems_ty *filesystems){
 	gchar **filesystems_temp = NULL;
 	
 	str_split(&filesystems_temp, run_command("df --type btrfs --type ext4 --type ext3 --type ext2 --type vfat --type iso9660 --block-size=1 | tail -n +2 | awk {'print $1\" \"$2\" \"$3\" \"$4'}"), '\n', (size_t *) &filesystems->count);
@@ -803,9 +798,9 @@ void *getFilesystemsUsage(void *thread_container){
 *	Parameter Conversion
 */
 
-	thread_container_t *tc = (thread_container_t *) thread_container;
+	thread_container_ty *tc = (thread_container_ty *) thread_container;
 
-	filesystems_t *fss = (filesystems_t *) tc->parameter;
+	filesystems_ty *fss = (filesystems_ty *) tc->parameter;
 
 /*
 *	Get RAM Capacity ( Initialize )
@@ -849,7 +844,7 @@ void *getFilesystemsUsage(void *thread_container){
 			}
 			// tuptuO
 
-			sleep_ms(FileSys_Interval);
+			sleep_ms(tc->interval);
 
 			pthread_mutex_lock(&File_sys_Mutex);
 			getPhysicalFilesystems(fss);
