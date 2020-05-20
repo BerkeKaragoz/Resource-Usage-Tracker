@@ -61,6 +61,8 @@ void *timeLimit (void *thread_container){
 
 	g_fprintf(STD, CONSOLE_ERASE_LINE "Timelimit is over.\n" CONSOLE_ERASE_LINE "Success!\n");
 	Program_State = ps_Stopped;
+
+	exit(EXIT_SUCCESS);
 }
 
 /*
