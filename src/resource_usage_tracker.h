@@ -12,7 +12,7 @@
 
 #include "berkelib/macros_.h"
 
-#define DEBUG_RUT
+//#define DEBUG_RUT
 #define MAX_THREADS 64
 #define DEFAULT_GLOBAL_INTERVAL 1000
 
@@ -50,13 +50,13 @@ enum initialization_states{
 	is_Filesystems 			= 0b10000
 }Init_State;
 
-typedef struct thread_container{
+typedef struct resource_thread{
 	pthread_t thread;
 	uint16_t id;
 	uint32_t interval;
 	gfloat alert_usage;
 	void *parameter;
-}thread_container_ty;
+}resource_thread_ty;
 
 struct disk_info{
 	gchar *name;
@@ -104,6 +104,8 @@ extern enum initialization_states 	Init_State;
 
 // Functions
 void *		timeLimit				(void *thread_container);
+
+void		sendAlert				(resource_thread_ty *thread_container, gfloat usage);
 
 void * 		getCpuUsage				(void *thread_container);
 void *		getRamUsage				(void *thread_container);

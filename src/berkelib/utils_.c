@@ -63,6 +63,16 @@ void str_to_uint32(char *string, uint32_t *output) {
 	}
 }
 
+void str_to_float(char *string, float *output) {
+	char *temp;
+	*output = strtof(string, &temp);
+
+	if (*temp != '\0'){
+		fprintf(stderr, RED_BOLD("[ERROR]") " %s to long and leftover string is: %s\n", string, temp);
+		exit(EXIT_FAILURE);
+	}
+}
+
 // Splits STR by the DELIMITER to string array and returns it with element COUNT
 void str_split(char ***output, char *str, const char delimiter, size_t *count_ptr){	
 	
