@@ -212,7 +212,6 @@ int main (int argc, char * const argv[]){
 *	Clean Up
 */
 
-	pthread_exit(NULL);
 	g_free(disk_io_tcs);
 	g_free(net_int_tcs);
 	Program_State = ps_Stopped;
