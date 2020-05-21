@@ -55,7 +55,7 @@ int main (int argc, char * const argv[]){
 
 	extern char* optarg;
 	int32_t opt;
-#define _ARGS_ 	"ht:c:C:r:f:d:n:N:"
+#define _ARGS_ 	"ht:c:C:r:f:F:d:n:N:"
 	while ((opt = getopt(argc, argv, _ARGS_)) != -1){
 
 		switch (opt) {
@@ -95,6 +95,11 @@ int main (int argc, char * const argv[]){
 			case 'f':
 
 				str_to_uint32(optarg, &filesys_interval);
+
+			break;
+			case 'F':
+				
+				str_to_float(optarg, &filesys_alert_usage);
 
 			break;
 			case 'd':

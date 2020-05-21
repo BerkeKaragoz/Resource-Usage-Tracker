@@ -546,7 +546,7 @@ void * getNetworkIntUsage(void *thread_container){
 	
 }
 
-void *getFilesystemsUsage(void *thread_container){
+void * getFilesystemsUsage(void *thread_container){
 
 /*
 *	Parameter Conversion
@@ -584,8 +584,17 @@ void *getFilesystemsUsage(void *thread_container){
 				g_fprintf(STD, "Filesystems:");
 
 				for(uint32_t i = 0; i < fss->count; i++){
+					
+					size_t total_size = ( (fss->info + i)->used + (fss->info + i)->available);
+					
+					gfloat percentage_usage = (fss->info + i)->used / (gfloat) total_size * 100.0;
+
+					if (percentage_usage >= tc->alert_usage){
+						sendAlert(tc, percentage_usage);
+					}
+
 					CONSOLE_GOTO(0, Last_Thread_Id + 3 + i);
-					g_fprintf(STD, CONSOLE_ERASE_LINE " %s:\t%" PRIu64 " / %" PRIu64 "\n", (fss->info + i)->partition, (fss->info + i)->used, ( (fss->info + i)->used + (fss->info + i)->available) );
+					g_fprintf(STD, CONSOLE_ERASE_LINE " %s:\t%zu / %zu \t %2.2f%% \n", (fss->info + i)->partition, (fss->info + i)->used, total_size, percentage_usage);
 				}
 
 				CONSOLE_GOTO(0, Last_Thread_Id + 1);
@@ -596,6 +605,33 @@ void *getFilesystemsUsage(void *thread_container){
 				pthread_mutex_unlock(&File_sys_Mutex);
 
 			}
+
+#ifdef DEBUG_RUT
+
+		for(uint32_t i = 0; i < fss->count; i++){
+			
+			size_t total_size = ( (fss->info + i)->used + (fss->info + i)->available);
+			
+			gfloat percentage_usage = (fss->info + i)->used / (gfloat) total_size * 100.0;
+
+			if (percentage_usage >= tc->alert_usage){
+				g_fprintf(STD, PINK_BOLD("[ALERT]") " Filesystem (%s) usage (%2.2f%%) is over %2.2f%% in last %" PRIu32 "ms!\n", (fss->info + i)->partition, percentage_usage, tc->alert_usage, tc->interval);
+			}
+
+			g_fprintf(STD,
+				CYAN_BOLD(" --- getFilesystemsUsage(%s) --- Thread: %d\n") \
+					PR_VAR(PRIu32, FSS_Interval)	\
+					PR_VAR("f", alert_usage)		\
+					PR_VAR("f", percentage_usage)	\
+					PR_VAR(PRId64, used)			\
+					PR_VAR(PRId64, capacity)		\
+				CYAN_BOLD(" ---\n") 				\
+				, (fss->info + i)->partition, tc->id, tc->interval, tc->alert_usage, percentage_usage, (fss->info + i)->used, total_size
+			);
+		}
+
+#endif
+
 			// tuptuO
 
 			sleep_ms(tc->interval);
