@@ -483,8 +483,14 @@ void * getNetworkIntUsage(void *thread_container){
 
 			nip -> down_bps = atoll(down_up[0][0]) - atoll(down_up[1][0]); // AD - BD
 			nip -> up_bps 	= atoll(down_up[0][1]) - atoll(down_up[1][1]); // AU - BU
-			//TODO alert
+			
+			gfloat percentage_usage = (nip->down_bps + nip->up_bps) / (gfloat) (nip->bandwith_mbps * MEGABYTE) * 100.0;
+
 			// Output
+			if (percentage_usage >= tc->alert_usage	){
+				sendAlert(tc, percentage_usage);
+			}
+
 			if ( !(Program_Flag & pf_No_CLI_Output) ){
 
 				CONSOLE_GOTO(0, tc->id);
@@ -496,18 +502,24 @@ void * getNetworkIntUsage(void *thread_container){
 
 #ifdef DEBUG_RUT
 
+	if (percentage_usage >= tc->alert_usage){
+		g_fprintf(STD, PINK_BOLD("[ALERT]") " Network usage (%2.5f%%) is over %2.5f%% in last %" PRIu32 "ms!\n", percentage_usage, tc->alert_usage, tc->interval);
+	}
+
 	g_fprintf(STD,
 		CYAN_BOLD(" --- getNetworkIntUsage(") "%s" CYAN_BOLD(") --- Thread: %d\n") \
 			PR_VAR("d", interval)			\
 			PR_VAR("d", type)				\
+			PR_VAR("f", alert_usage)		\
+			PR_VAR("f", percentage_usage)	\
 			PR_VAR("s", down_up[0][0])		\
 			PR_VAR("s", down_up[0][1])		\
 			PR_VAR("s", down_up[1][0])		\
 			PR_VAR("s", down_up[1][1])		\
 			PR_VAR("zu", netint->down_bps)	\
-			PR_VAR("zu", netint->up_bps)		\
+			PR_VAR("zu", netint->up_bps)	\
 		CYAN_BOLD(" ---\n") 				\
-		, nip->name, tc->id, tc->interval, nip->type, down_up[0][0], down_up[0][1], down_up[1][0], down_up[1][1], nip->down_bps, nip->up_bps
+		, nip->name, tc->id, tc->interval, nip->type, tc->alert_usage, percentage_usage, down_up[0][0], down_up[0][1], down_up[1][0], down_up[1][1], nip->down_bps, nip->up_bps
 	);
 
 #endif

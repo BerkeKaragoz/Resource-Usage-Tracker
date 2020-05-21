@@ -10,7 +10,7 @@
 #define STD stderr
 #endif
 
-#define KILOBYTE 1024
+#define KILOBYTE 1000 // 1024 is the old standard
 #define MEGABYTE (KILOBYTE * KILOBYTE)
 #define GIGABYTE (KILOBYTE * MEGABYTE)
 #define SECTOR (KILOBYTE / 2)

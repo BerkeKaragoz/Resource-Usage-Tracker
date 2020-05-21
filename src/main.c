@@ -55,7 +55,7 @@ int main (int argc, char * const argv[]){
 
 	extern char* optarg;
 	int32_t opt;
-#define _ARGS_ 	"ht:c:C:r:f:d:n:"
+#define _ARGS_ 	"ht:c:C:r:f:d:n:N:"
 	while ((opt = getopt(argc, argv, _ARGS_)) != -1){
 
 		switch (opt) {
@@ -105,6 +105,11 @@ int main (int argc, char * const argv[]){
 			case 'n':
 
 				str_to_uint32(optarg, &netint_interval);
+
+			break;
+			case 'N':
+				
+				str_to_float(optarg, &netint_alert_usage);
 
 			break;
 			

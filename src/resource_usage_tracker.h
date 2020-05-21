@@ -12,7 +12,7 @@
 
 #include "berkelib/macros_.h"
 
-//#define DEBUG_RUT
+#define DEBUG_RUT
 #define MAX_THREADS 64
 #define DEFAULT_GLOBAL_INTERVAL 1000
 
