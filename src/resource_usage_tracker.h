@@ -50,6 +50,22 @@ enum initialization_states{
 	is_Filesystems 			= 0b10000
 }Init_State;
 
+typedef struct rut_config{
+	uint32_t	timelimit_ms;
+
+	uint32_t	cpu_interval,
+				ram_interval,
+				disk_interval,
+				netint_interval,
+				filesys_interval;
+	
+	gfloat		cpu_alert_usage	,
+				ram_alert_usage,
+				disk_alert_usage,
+				netint_alert_usage,
+				filesys_alert_usage;
+}rut_config_ty;
+
 typedef struct resource_thread{
 	pthread_t thread;
 	uint16_t id;

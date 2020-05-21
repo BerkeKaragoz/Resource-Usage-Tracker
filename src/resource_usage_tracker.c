@@ -607,11 +607,11 @@ void * getFilesystemsUsage(void *thread_container){
 			}
 
 #ifdef DEBUG_RUT
-
+	pthread_mutex_lock(&File_sys_Mutex);
+	
 		for(uint32_t i = 0; i < fss->count; i++){
 			
 			size_t total_size = ( (fss->info + i)->used + (fss->info + i)->available);
-			
 			gfloat percentage_usage = (fss->info + i)->used / (gfloat) total_size * 100.0;
 
 			if (percentage_usage >= tc->alert_usage){
@@ -629,7 +629,8 @@ void * getFilesystemsUsage(void *thread_container){
 				, (fss->info + i)->partition, tc->id, tc->interval, tc->alert_usage, percentage_usage, (fss->info + i)->used, total_size
 			);
 		}
-
+	
+	pthread_mutex_unlock(&File_sys_Mutex);
 #endif
 
 			// tuptuO

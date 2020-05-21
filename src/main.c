@@ -31,31 +31,34 @@ int main (int argc, char * const argv[]){
 	Program_State |= ps_Initialized;
 	Program_State |= ps_Running;
 
+	rut_config_ty config;
+
+	disks_ty disks;
+	filesystems_ty filesystems;
+	net_ints_ty netints;
+
 	resource_thread_ty *disk_io_tcs,
 						*net_int_tcs,
 						cpu_tc,
 						ram_tc,
 						fss_tc;
 
-	disks_ty disks;
-	filesystems_ty filesystems;
-	net_ints_ty netints;
-
-	uint32_t	cpu_interval	= DEFAULT_CPU_INTERVAL,
-				ram_interval	= DEFAULT_RAM_INTERVAL,
-				disk_interval	= DEFAULT_DISK_INTERVAL,
-				netint_interval = DEFAULT_NETINT_INTERVAL,
-				filesys_interval= DEFAULT_FILESYS_INTERVAL;
+	config.cpu_interval		= DEFAULT_CPU_INTERVAL,
+	config.ram_interval		= DEFAULT_RAM_INTERVAL,
+	config.disk_interval	= DEFAULT_DISK_INTERVAL,
+	config.netint_interval 	= DEFAULT_NETINT_INTERVAL,
+	config.filesys_interval	= DEFAULT_FILESYS_INTERVAL;
 	
-	gfloat	cpu_alert_usage		= 200.0,
-			ram_alert_usage		= 200.0,
-			disk_alert_usage	= 200.0,
-			netint_alert_usage 	= 200.0,
-			filesys_alert_usage	= 200.0;
+	config.cpu_alert_usage		= 200.0,
+	config.ram_alert_usage		= 200.0,
+	config.disk_alert_usage		= 200.0,
+	config.netint_alert_usage 	= 200.0,
+	config.filesys_alert_usage	= 200.0;
+
 
 	extern char* optarg;
 	int32_t opt;
-#define _ARGS_ 	"ht:c:C:r:f:F:d:n:N:"
+#define _ARGS_ 	"ht:c:C:r:R:f:F:d:D:n:N:"
 	while ((opt = getopt(argc, argv, _ARGS_)) != -1){
 
 		switch (opt) {
@@ -67,54 +70,63 @@ int main (int argc, char * const argv[]){
 			break;
 			case 't':
 				{
-					int64_t timelimit_ms = INT64_MIN;
 					resource_thread_ty tlc;
 
-					str_to_int64(optarg, &timelimit_ms);
+					str_to_int64(optarg, &config.timelimit_ms);
 					tlc.id = MAX_THREADS - 1;
-					tlc.parameter = &timelimit_ms;
+					tlc.parameter = &config.timelimit_ms;
 
 					pthread_create(&tlc.thread, NULL, timeLimit, &tlc);
 				}
 			break;
 			case 'c':
 
-				str_to_uint32(optarg, &cpu_interval);
+				str_to_uint32(optarg, &config.cpu_interval);
 
 			break;
 			case 'C':
 				
-				str_to_float(optarg, &cpu_alert_usage);
+				str_to_float(optarg, &config.cpu_alert_usage);
 
 			break;
 			case 'r':
 
-				str_to_uint32(optarg, &ram_interval);
+				str_to_uint32(optarg, &config.ram_interval);
+
+			break;
+			case 'R':
+				
+				str_to_float(optarg, &config.ram_alert_usage);
 
 			break;
 			case 'f':
 
-				str_to_uint32(optarg, &filesys_interval);
+				str_to_uint32(optarg, &config.filesys_interval);
 
 			break;
 			case 'F':
 				
-				str_to_float(optarg, &filesys_alert_usage);
+				str_to_float(optarg, &config.filesys_alert_usage);
 
 			break;
 			case 'd':
 
-				str_to_uint32(optarg, &disk_interval);
+				str_to_uint32(optarg, &config.disk_interval);
+
+			break;
+			case 'D':
+				
+				str_to_float(optarg, &config.disk_alert_usage);//TODO
 
 			break;
 			case 'n':
 
-				str_to_uint32(optarg, &netint_interval);
+				str_to_uint32(optarg, &config.netint_interval);
 
 			break;
 			case 'N':
 				
-				str_to_float(optarg, &netint_alert_usage);
+				str_to_float(optarg, &config.netint_alert_usage);
 
 			break;
 			
@@ -157,8 +169,8 @@ int main (int argc, char * const argv[]){
 
 	//Cpu
 	cpu_tc.id = Last_Thread_Id++;
-	cpu_tc.interval = cpu_interval;
-	cpu_tc.alert_usage = cpu_alert_usage;
+	cpu_tc.interval = config.cpu_interval;
+	cpu_tc.alert_usage = config.cpu_alert_usage;
 	cpu_tc.parameter = NULL;
 
 	pthread_create(&cpu_tc.thread, NULL, getCpuUsage, &cpu_tc); // CPU
@@ -166,8 +178,8 @@ int main (int argc, char * const argv[]){
 
 	//Ram
 	ram_tc.id = Last_Thread_Id++;
-	ram_tc.interval = ram_interval;
-	ram_tc.alert_usage = ram_alert_usage;
+	ram_tc.interval = config.ram_interval;
+	ram_tc.alert_usage = config.ram_alert_usage;
 	ram_tc.parameter = NULL;
 
 	pthread_create(&ram_tc.thread, NULL, getRamUsage, &ram_tc);
@@ -175,8 +187,8 @@ int main (int argc, char * const argv[]){
 
 	//Filesystems
 	fss_tc.id = Last_Thread_Id++;
-	fss_tc.interval = filesys_interval;
-	fss_tc.alert_usage = filesys_alert_usage;
+	fss_tc.interval = config.filesys_interval;
+	fss_tc.alert_usage = config.filesys_alert_usage;
 	fss_tc.parameter = &filesystems;
 
 	pthread_create(&fss_tc.thread, NULL, getFilesystemsUsage, &fss_tc);
@@ -185,8 +197,8 @@ int main (int argc, char * const argv[]){
 	//Disk
 	for (uint16_t i = 0; i < disks.count; i++){ // Disks Reads/Writes
 		(*(disk_io_tcs + i)).id = Last_Thread_Id++;
-		(*(disk_io_tcs + i)).interval = disk_interval;
-		(*(disk_io_tcs + i)).alert_usage = disk_alert_usage;
+		(*(disk_io_tcs + i)).interval = config.disk_interval;
+		(*(disk_io_tcs + i)).alert_usage = config.disk_alert_usage;
 		(disk_io_tcs + i) -> parameter = disks.info + i;
 
 		pthread_create( &(disk_io_tcs + i)->thread, NULL, getDiskUsage, disk_io_tcs + i );
@@ -196,8 +208,8 @@ int main (int argc, char * const argv[]){
 	//Network
 	for (uint16_t i = 0; i < netints.count; i++){ // Get Network Interface Infos
 		(*(net_int_tcs + i)).id = Last_Thread_Id++;
-		(*(net_int_tcs + i)).interval = netint_interval;
-		(*(net_int_tcs + i)).alert_usage = netint_alert_usage;
+		(*(net_int_tcs + i)).interval = config.netint_interval;
+		(*(net_int_tcs + i)).alert_usage = config.netint_alert_usage;
 		(net_int_tcs + i) -> parameter = netints.info + i;
 
 		pthread_create( &(net_int_tcs + i)->thread, NULL, getNetworkIntUsage, net_int_tcs + i);
