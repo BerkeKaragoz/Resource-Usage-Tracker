@@ -11,6 +11,8 @@
 #include <glib.h>
 
 #include "resource_usage_tracker.h"
+#include "xmlparser.h"
+
 #include "berkelib/macros_.h"
 #include "berkelib/utils_.h"
 
@@ -43,6 +45,9 @@ int main (int argc, char * const argv[]){
 						ram_tc,
 						fss_tc;
 
+	//Config
+	config.timelimit_ms = 0;
+
 	config.cpu_interval		= DEFAULT_CPU_INTERVAL,
 	config.ram_interval		= DEFAULT_RAM_INTERVAL,
 	config.disk_interval	= DEFAULT_DISK_INTERVAL,
@@ -54,11 +59,11 @@ int main (int argc, char * const argv[]){
 	config.disk_alert_usage		= 200.0,
 	config.netint_alert_usage 	= 200.0,
 	config.filesys_alert_usage	= 200.0;
-
+	//gifnoC
 
 	extern char* optarg;
 	int32_t opt;
-#define _ARGS_ 	"ht:c:C:r:R:f:F:d:D:n:N:"
+#define _ARGS_ 	"ht:c:C:r:R:f:F:d:D:n:N:x"
 	while ((opt = getopt(argc, argv, _ARGS_)) != -1){
 
 		switch (opt) {
@@ -69,15 +74,9 @@ int main (int argc, char * const argv[]){
 
 			break;
 			case 't':
-				{
-					resource_thread_ty tlc;
 
-					str_to_int64(optarg, &config.timelimit_ms);
-					tlc.id = MAX_THREADS - 1;
-					tlc.parameter = &config.timelimit_ms;
+				str_to_uint32(optarg, &config.timelimit_ms);
 
-					pthread_create(&tlc.thread, NULL, timeLimit, &tlc);
-				}
 			break;
 			case 'c':
 
@@ -129,12 +128,11 @@ int main (int argc, char * const argv[]){
 				str_to_float(optarg, &config.netint_alert_usage);
 
 			break;
-			
-			/*
-			*	TODO (?) x for read from xml for alerts
-			*	cpu 90% 5min
-			*	ram 7gig 10min
-			*/
+			case 'x':
+
+				readXmlTree(&config, POLICY_FILE);
+
+			break;
 
 			default:				
 				g_fprintf(STD, "Usage: %s [-" _ARGS_ "] [value]\n", argv[0]);
@@ -145,14 +143,26 @@ int main (int argc, char * const argv[]){
 	getAllDisks(&disks); //Disks
 	getNetworkInterfaces(&netints); //Network Interfaces
 
+
 	if(disks.count > 1)
 	{
+		
 		getSystemDisk(NULL, NULL); //System Disk
-	}
-	else if (disks.count == 0)
-	{
+
+	} else if (disks.count == 0) {
+
 		g_fprintf(STD, RED_BOLD("[ERROR]")" Could not get the disks!\n");
 		exit(EXIT_FAILURE);
+
+	}
+
+	if (config.timelimit_ms > 0){
+		resource_thread_ty tlc;
+
+		tlc.id = MAX_THREADS - 1;
+		tlc.parameter = &config.timelimit_ms;
+
+		pthread_create(&tlc.thread, NULL, timeLimit, &tlc);
 	}
 	
 

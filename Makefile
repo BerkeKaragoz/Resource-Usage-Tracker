@@ -2,7 +2,7 @@ CC = gcc
 
 
 CFLAGS  =  -g -Wall -Wno-format -pthread -I/usr/include/glib-2.0 -I/usr/lib/x86_64-linux-gnu/glib-2.0/include -I/usr/include/glib-2.0/gio -I/usr/include/libxml2
-LIBS 	= $(wildcard src/berkelib/*) -lglib-2.0
+LIBS 	= $(wildcard src/berkelib/*) -lglib-2.0 -lxml2
 DIR 	= ./build/
 ARGS 	=
 TARGET 	= $(DIR)resource_usage_tracker

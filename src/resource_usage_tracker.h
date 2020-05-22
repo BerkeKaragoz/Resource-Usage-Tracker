@@ -15,6 +15,7 @@
 #define DEBUG_RUT
 #define MAX_THREADS 64
 #define DEFAULT_GLOBAL_INTERVAL 1000
+#define POLICY_FILE "xml/rut.xml"
 
 #define DEFAULT_CPU_INTERVAL		DEFAULT_GLOBAL_INTERVAL
 #define DEFAULT_RAM_INTERVAL		DEFAULT_GLOBAL_INTERVAL	* 2
@@ -59,7 +60,7 @@ typedef struct rut_config{
 				netint_interval,
 				filesys_interval;
 	
-	gfloat		cpu_alert_usage	,
+	gfloat		cpu_alert_usage,
 				ram_alert_usage,
 				disk_alert_usage,
 				netint_alert_usage,

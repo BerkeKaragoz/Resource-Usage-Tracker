@@ -1,0 +1,12 @@
+<rut>
+	<config>
+		<timelimit>10000</timelimit>
+		<resources>
+			<item name="cpu" interval="2000" alert="200.0"></item>
+			<item name="ram" interval="2000" alert="200.0"></item>
+			<item name="disk" interval="2000" alert="200.0"></item>
+			<item name="network" interval="2000" alert="200.0"></item>
+			<item name="filesystems" interval="2000" alert="200.0"></item>
+		</resources>
+	</config>
+</rut>

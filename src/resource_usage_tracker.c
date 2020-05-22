@@ -884,7 +884,7 @@ void getAllDisks(disks_ty *disks){
 		*temp = *(temp + 1);
 		(disks->count)--;
 	}
-
+	
 	uint16_t i;
 	for(i = 1; i < disks->count; i++){
 
@@ -898,11 +898,12 @@ void getAllDisks(disks_ty *disks){
 	}//for
 	// LLUN fi eteleD
 
+	disks->info = (struct disk_info *)g_malloc(sizeof(struct disk_info) * disks->count);
+
 	for (i = 0; i < disks->count; i++){
-		(*(disks + i)).info = (struct disk_info *)g_malloc(sizeof(struct disk_info));
-		(*((*disks).info + i)).name = *(temp + i);
+		(disks->info + i)->name = *(temp + i);
 	}
-	
+
 	g_free(temp);
 
 #ifdef DEBUG_RUT
@@ -914,6 +915,7 @@ void getAllDisks(disks_ty *disks){
 	}
 	g_fprintf(STD, CYAN_BOLD(" ---\n"));
 #endif
+
 }
 
 // df --type btrfs --type ext4 --type ext3 --type ext2 --type vfat --type iso9660 --block-size=1 | tail -n +2 | awk {'print $1" "$2" "$3" "$4'}
