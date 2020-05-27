@@ -21,7 +21,10 @@ jobs:
 
     - name: Compile and Run for Half a Minute
       run: make -f ./Makefile ARGS="-t 30000"
-
+      
+    - name: Compile and Run with XML Configuration
+      run: make -f ./Makefile ARGS="-x"
+      
     - name: Compile and Run for 15 Minutes
       run: make -f ./Makefile ARGS="-t 900000"
 
