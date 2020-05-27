@@ -18,6 +18,8 @@ void        str_to_uint64           (char *string, uint64_t *output);
 void        str_to_uint32           (char *string, uint32_t *output);
 void        str_to_float            (char *string, float *output);
 void 	    str_split				(char *** output, char *str, const char delimiter, size_t *count_ptr);
+char *      bytes_to_str            (size_t bytes);
+
 void 		sleep_ms				(const uint32_t milliseconds);
 char * 		run_command				(char *command);
 size_t 	    leftTrimTill			(char *strptr, const char ch);

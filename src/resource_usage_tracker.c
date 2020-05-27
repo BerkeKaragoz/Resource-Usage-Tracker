@@ -221,7 +221,7 @@ void *getRamUsage(void *thread_container){
 *	Get RAM Capacity ( Initialize )
 */
 
-	int64_t capacity = getFirstVarNumValue(PATH_MEM_INFO, PASS_WITH_SIZEOF("MemTotal:"), 0);
+	size_t capacity = getFirstVarNumValue(PATH_MEM_INFO, PASS_WITH_SIZEOF("MemTotal:"), 0);
 	Init_State |= is_Ram;
 
 /*
@@ -232,7 +232,7 @@ void *getRamUsage(void *thread_container){
 
 		while( Program_State & ps_Running ){
 
-			int64_t usage = getFirstVarNumValue(PATH_MEM_INFO, PASS_WITH_SIZEOF("Active:"), 0);
+			size_t usage = getFirstVarNumValue(PATH_MEM_INFO, PASS_WITH_SIZEOF("Active:"), 0);
 			
 			pthread_mutex_lock(&Ram_Mutex);
 
@@ -242,7 +242,7 @@ void *getRamUsage(void *thread_container){
 			if ( !(Program_Flag & pf_No_CLI_Output) ){
 
 				CONSOLE_GOTO(0, tc->id);
-				g_fprintf(STD, CONSOLE_ERASE_LINE " RAM:\t\t%" PRId64 " / %" PRId64 "\n", usage, capacity);	
+				g_fprintf(STD, CONSOLE_ERASE_LINE " RAM:\t\t%s / %s\n", bytes_to_str(usage), bytes_to_str(capacity) );	
 				CONSOLE_GOTO(0, Last_Thread_Id + 1);
 				g_fprintf(STD, CONSOLE_ERASE_LINE);
 				fflush(STD);
@@ -265,8 +265,8 @@ void *getRamUsage(void *thread_container){
 				PR_VAR(PRIu32, Ram_Interval)	\
 				PR_VAR("f", percentage_usage)	\
 				PR_VAR("f", alert_usage)		\
-				PR_VAR(PRId64, usage)			\
-				PR_VAR(PRId64, capacity)		\
+				PR_VAR("zu", usage)			\
+				PR_VAR("zu", capacity)		\
 			CYAN_BOLD(" ---\n") 				\
 			, tc->id, tc->interval, percentage_usage, tc->alert_usage, usage, capacity 
 		);
@@ -361,7 +361,7 @@ void *getDiskUsage(void *thread_container){
 			if ( !(Program_Flag & pf_No_CLI_Output) ){
 
 				CONSOLE_GOTO(0, tc->id);
-				g_fprintf(STD, CONSOLE_ERASE_LINE " Disk: %-10s\tRead: %7zu bytes/%" PRIu32 "ms\tWrite: %7zu bytes/%" PRIu32 "ms\n", dip->name, dip->read_bytes, tc->interval, dip->written_bytes, tc->interval);	
+				g_fprintf(STD, CONSOLE_ERASE_LINE " Disk: %-10s\tRead: %7s /%" PRIu32 "ms\tWrite: %7s /%" PRIu32 "ms\n", dip->name, bytes_to_str(dip->read_bytes), tc->interval, bytes_to_str(dip->written_bytes), tc->interval);	
 				CONSOLE_GOTO(0, Last_Thread_Id + 1);
 				g_fprintf(STD, CONSOLE_ERASE_LINE);
 				fflush(STD);
@@ -494,7 +494,7 @@ void * getNetworkIntUsage(void *thread_container){
 			if ( !(Program_Flag & pf_No_CLI_Output) ){
 
 				CONSOLE_GOTO(0, tc->id);
-				g_fprintf(STD, CONSOLE_ERASE_LINE " Network: %-10s\tDown: %7zu bytes/%" PRIu32 "ms\tUp: %7zu bytes/%" PRIu32 "ms\n", nip->name, nip->down_bps, tc->interval, nip->up_bps, tc->interval);	
+				g_fprintf(STD, CONSOLE_ERASE_LINE " Network: %-10s\tDown: %7s /%" PRIu32 "ms\tUp: %7s /%" PRIu32 "ms\n", nip->name, bytes_to_str(nip->down_bps), tc->interval, bytes_to_str(nip->up_bps), tc->interval);	
 				CONSOLE_GOTO(0, Last_Thread_Id + 1);
 				g_fprintf(STD, CONSOLE_ERASE_LINE);
 				fflush(STD);
@@ -594,7 +594,7 @@ void * getFilesystemsUsage(void *thread_container){
 					}
 
 					CONSOLE_GOTO(0, Last_Thread_Id + 3 + i);
-					g_fprintf(STD, CONSOLE_ERASE_LINE " %s:\t%zu / %zu \t %2.2f%% \n", (fss->info + i)->partition, (fss->info + i)->used, total_size, percentage_usage);
+					g_fprintf(STD, CONSOLE_ERASE_LINE " %s:\t%s / %s \t %2.2f%% \n", (fss->info + i)->partition, bytes_to_str((fss->info + i)->used), bytes_to_str(total_size), percentage_usage);
 				}
 
 				CONSOLE_GOTO(0, Last_Thread_Id + 1);
@@ -922,7 +922,7 @@ void getAllDisks(disks_ty *disks){
 void getPhysicalFilesystems(filesystems_ty *filesystems){
 	gchar **filesystems_temp = NULL;
 	
-	str_split(&filesystems_temp, run_command("df --type btrfs --type ext4 --type ext3 --type ext2 --type vfat --type iso9660 --block-size=1 | tail -n +2 | awk {'print $1\" \"$2\" \"$3\" \"$4'}"), '\n', (size_t *) &filesystems->count);
+	str_split(&filesystems_temp, run_command("df --type btrfs --type ext4 --type ext3 --type ext2 --type vfat --type iso9660 --block-size=1 | tail -n +2 | awk {'print $1\" \"$2\" \"$3\" \"$4\" X\"'}"), '\n', (size_t *) &filesystems->count);
 
 	// Delete if NULL
 	if (*filesystems_temp == NULL){
@@ -945,12 +945,17 @@ void getPhysicalFilesystems(filesystems_ty *filesystems){
 	size_t info_field_count = 0;
 	gchar **fsi_temp = NULL;
 	for (i = 0; i < filesystems->count; i++){
+
 		(*(filesystems + i)).info = (struct filesystem_info *)g_malloc(sizeof(struct filesystem_info));
+
 		str_split(&fsi_temp, *(filesystems_temp + i), ' ', &info_field_count );
-		(*((*filesystems).info + i)).partition 	= *(fsi_temp + 0);
-		(*((*filesystems).info + i)).block_size = (size_t) *(fsi_temp + 1); // as 1-byte sizes
-		(*((*filesystems).info + i)).used 		= (size_t) *(fsi_temp + 2);
-		(*((*filesystems).info + i)).available 	= (size_t) *(fsi_temp + 3);
+
+		(filesystems->info + i)->partition 	= *(fsi_temp + 0);
+
+		str_to_uint64(*(fsi_temp + 1), &(filesystems->info + i)->block_size ); // as 1-byte sizes
+		str_to_uint64(*(fsi_temp + 2), &(filesystems->info + i)->used );
+		str_to_uint64(*(fsi_temp + 3), &(filesystems->info + i)->available );
+
 	}
 
 	g_free(fsi_temp);
@@ -962,9 +967,9 @@ void getPhysicalFilesystems(filesystems_ty *filesystems){
 		g_fprintf(STD, CYAN_BOLD("Filesystems:\n"));
 		for(uint16_t i = 0 ; i < filesystems->count; i++){
 			g_fprintf(STD, CYAN_BOLD("- Partition: ")"\t%s\n", (*((*filesystems).info + i)).partition);
-			g_fprintf(STD, CYAN_BOLD("- Byte blocks: ")"\t%s\n", (*((*filesystems).info + i)).block_size);
-			g_fprintf(STD, CYAN_BOLD("- Used: ")"\t%s\n", (*((*filesystems).info + i)).used);
-			g_fprintf(STD, CYAN_BOLD("- Available: ")"\t%s\n", (*((*filesystems).info + i)).available);
+			g_fprintf(STD, CYAN_BOLD("- Byte blocks: ")"\t%zu\n", (*((*filesystems).info + i)).block_size);
+			g_fprintf(STD, CYAN_BOLD("- Used: ")"\t%zu\n", (*((*filesystems).info + i)).used);
+			g_fprintf(STD, CYAN_BOLD("- Available: ")"\t%zu\n", (*((*filesystems).info + i)).available);
 		}
 		g_fprintf(STD, CYAN_BOLD(" ---\n"));
 #endif

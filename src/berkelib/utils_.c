@@ -8,6 +8,7 @@
 #include <string.h>
 #include <time.h>
 #include <stdint.h>
+#include <inttypes.h>
 #include <assert.h>
 
 #include "macros_.h"
@@ -124,6 +125,28 @@ void str_split(char ***output, char *str, const char delimiter, size_t *count_pt
     }
 
     return;
+}
+
+char * bytes_to_str(size_t bytes)
+{
+	static const char *sizes[] = { "EiB", "PiB", "TiB", "GiB", "MiB", "KiB", "B" };
+
+    char     *result = (char *) malloc(sizeof(char) * 20);
+    size_t  multiplier = (size_t) EXBIBYTE;
+    int i;
+
+    for (i = 0; i < (sizeof(sizes)/sizeof(*(sizes))); i++, multiplier /= KILOBYTE)
+    {   
+        if (bytes < multiplier)
+            continue;
+        if (bytes % multiplier == 0)
+            sprintf(result, "%zu %s", bytes / multiplier, sizes[i]);
+        else
+            sprintf(result, "%.1f %s", (float) bytes / multiplier, sizes[i]);
+        return result;
+    }
+    strcpy(result, "0");
+    return result;
 }
 
 void sleep_ms(const uint32_t milliseconds) {
