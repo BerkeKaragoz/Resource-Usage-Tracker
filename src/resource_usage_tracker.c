@@ -492,20 +492,21 @@ void * getNetworkIntUsage(void *thread_container){
 			nip -> down_bps = atoll(down_up[0][0]) - atoll(down_up[1][0]); // AD - BD
 			nip -> up_bps 	= atoll(down_up[0][1]) - atoll(down_up[1][1]); // AU - BU
 			
-			gfloat percentage_usage = (nip->down_bps + nip->up_bps) / (gfloat) (nip->bandwith_mbps * MEGABYTE) * 100.0;
+			gfloat percentage_usage = (nip->down_bps + nip->up_bps) / (gfloat) (nip->bandwith_mbps * MEGABYTE / 8) * 100.0;
 
 			// Output
-			if (percentage_usage >= tc->alert_usage	){
-				sendAlert(tc, percentage_usage);
-			}
-
 			if ( !(Program_Flag & pf_No_CLI_Output) ){
 
-				CONSOLE_GOTO(0, tc->id);
-				g_fprintf(STD, CONSOLE_ERASE_LINE " Network: %-10s\tDown: %7s /%" PRIu32 "ms\tUp: %7s /%" PRIu32 "ms\n", nip->name, bytes_to_str(nip->down_bps), tc->interval, bytes_to_str(nip->up_bps), tc->interval);	
+				tc->output_line = tc->id;
+				CONSOLE_GOTO(0, tc->output_line);
+				g_fprintf(STD, CONSOLE_ERASE_LINE " Network: %-10s\tDown: %7s /%" PRIu32 "ms\tUp: %7s /%" PRIu32 "ms  %2.4f%%\n", nip->name, bytes_to_str(nip->down_bps), tc->interval, bytes_to_str(nip->up_bps), tc->interval, percentage_usage);	
 				CONSOLE_GOTO(0, Last_Thread_Id + 1);
 				g_fprintf(STD, CONSOLE_ERASE_LINE);
 				fflush(STD);
+			}
+
+			if (percentage_usage >= tc->alert_usage	){
+				sendAlert(tc, percentage_usage);
 			}
 
 #ifdef DEBUG_RUT

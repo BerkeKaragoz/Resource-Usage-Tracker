@@ -63,14 +63,18 @@ int main (int argc, char * const argv[]){
 
 	extern char* optarg;
 	int32_t opt;
-#define _ARGS_ 	"ht:c:C:r:R:f:F:d:D:n:N:x"
-	while ((opt = getopt(argc, argv, _ARGS_)) != -1){
+
+	while ((opt = getopt(argc, argv, "hqt:c:C:r:R:f:F:d:D:n:N:x")) != -1){
 
 		switch (opt) {
-			case 'h':
+			case 'x':
 
-				g_fprintf(STD, "Usage: %s [-" _ARGS_ "] [value]\n", argv[0]);
-				exit(EXIT_SUCCESS);
+				readXmlTree(&config, POLICY_FILE);
+
+			break;
+			case 'q':
+
+				Program_Flag |= pf_No_CLI_Output;
 
 			break;
 			case 't':
@@ -128,15 +132,21 @@ int main (int argc, char * const argv[]){
 				str_to_float(optarg, &config.netint_alert_usage);
 
 			break;
-			case 'x':
 
-				readXmlTree(&config, POLICY_FILE);
+			case 'h':
+			default:
 
-			break;
+				g_fprintf(STD, "Usage: %s [option] [value]\n" \
+					"  -t Sets the timelimit of the program in ms. Program exits after that time.\n" \
+					"  -q Quiet Mode\n"
+					"  -c Sets the CPU usage checking interval in ms\n\t-C sets the alert limit in usage percentage\n" \
+					"  -r Sets the RAM usage checking interval in ms\n\t-C sets the alert limit in usage percentage\n" \
+					"  -d Sets the Disks usage checking interval in ms\n\t-C sets the alert limit in usage percentage\n" \
+					"  -f Sets the Filesystems usage checking interval in ms\n\t-C sets the alert limit in usage percentage\n" \
+					"  -n Sets the Network Interfaces usage checking interval in ms\n\t-C sets the alert limit in usage percentage\n" \
+				, argv[0]);
+				exit(EXIT_SUCCESS);
 
-			default:				
-				g_fprintf(STD, "Usage: %s [-" _ARGS_ "] [value]\n", argv[0]);
-				exit(EXIT_FAILURE);
 		}//switch
 	}
 
@@ -254,5 +264,3 @@ int main (int argc, char * const argv[]){
 #endif
 	return (EXIT_SUCCESS);
 }
-
-// $ cat /sys/block/<disk>/device/model ---> KBG30ZMV256G TOSHIBA
