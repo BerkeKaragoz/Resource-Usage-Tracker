@@ -61,7 +61,9 @@ int readXmlTree(rut_config_ty *config, char *file){
 
 	root_element = xmlDocGetRootElement(doc);
 
+#ifdef DEBUG_RUT
 	g_fprintf(STD, "(XML) Root: %s\n", root_element->name);
+#endif
 
 	if(!root_element){
 		xmlFreeDoc(doc);
@@ -75,8 +77,9 @@ int readXmlTree(rut_config_ty *config, char *file){
 	current_node = findNodeByName(current_node, (xmlChar*) "timelimit");
 
 	str_to_uint32( (gchar *) XML_GET_CONTENT(current_node->children), &config->timelimit_ms );
+#ifdef DEBUG_RUT
 	g_fprintf(STD, "(XML) Timelimit: %u\n", (*config).timelimit_ms);
-
+#endif
 	current_node = findNodeByName(current_node, (xmlChar*) "resources");
 
 	uint16_t itemcount = 0;
@@ -99,24 +102,27 @@ int readXmlTree(rut_config_ty *config, char *file){
 			if(!g_strcmp0((char*)temp_attribute->name, "name")){
 				
 				temp_name = (gchar *) XML_GET_CONTENT(temp_attribute->children);
+#ifdef DEBUG_RUT
 				g_fprintf(STD, "(XML) Name: %s\n", temp_name );
-
+#endif
 				if (temp_attribute->next != NULL) temp_attribute = temp_attribute->next;
 			}
 			
 			if(!g_strcmp0((char*)temp_attribute->name, "interval")){
 				
 				str_to_uint32(XML_GET_CONTENT(temp_attribute->children), &temp_interval);
+#ifdef DEBUG_RUT
 				g_fprintf(STD, "(XML) Interval: %u\n", temp_interval );
-
+#endif
 				if (temp_attribute->next != NULL) temp_attribute = temp_attribute->next; 
 			}
 
 			if(!g_strcmp0((char*)temp_attribute->name, "alert")){
 
 				str_to_float(XML_GET_CONTENT(temp_attribute->children), &temp_alert);
+#ifdef DEBUG_RUT
 				g_fprintf(STD, "(XML) Alert: %f\n", temp_alert );
-
+#endif
 				if (temp_attribute->next != NULL) temp_attribute = temp_attribute->next; 
 			}
 

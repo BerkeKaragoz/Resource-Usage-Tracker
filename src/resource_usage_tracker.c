@@ -73,10 +73,14 @@ void sendAlert (resource_thread_ty *thread_container, gfloat usage){
 
 	if ( !(Program_Flag & pf_No_CLI_Output) ){
 
-		g_fprintf(STD, PINK_BOLD("[ALERT]") " Resource (%" PRIu16 ") usage (%2.2f%%) is over %2.2f%% in last %" PRIu32 "ms!\n",
+		CONSOLE_GOTO(0, thread_container->output_line);
+		g_fprintf(STD, PINK_BOLD("█"));
+
+		CONSOLE_GOTO(0, Last_Thread_Id + 1);
+
+		g_fprintf(STD, CONSOLE_ERASE_LINE PINK_BOLD("[ALERT]") " Resource (" WHITE_BOLD("%" PRIu16) ") usage (" WHITE_BOLD("%2.2f%%") ") is over " WHITE_BOLD("%2.2f%%") " in last " WHITE_BOLD("%" PRIu16 "ms") "!",
 			thread_container->id, usage, thread_container->alert_usage, thread_container->interval
 		);
-	
 	}
 
 }
@@ -113,8 +117,9 @@ void *getCpuUsage(void *thread_container){
 	// Initial Output
 	if ( !(Program_Flag & pf_No_CLI_Output) ){
 
-		CONSOLE_GOTO(0, tc->id);
-		g_fprintf(STD, CONSOLE_ERASE_LINE " CPU Usage: \tWaiting for %" PRIu32 "ms...\n", tc->interval);	
+		tc->output_line = tc->id;
+		CONSOLE_GOTO(0, tc->output_line);
+		g_fprintf(STD, CONSOLE_ERASE_LINE " CPU Usage: \tWaiting for %" PRIu32 "ms...\n", tc->interval);
 		CONSOLE_GOTO(0, Last_Thread_Id + 1);
 		g_fprintf(STD, CONSOLE_ERASE_LINE);
 		fflush(STD);
@@ -241,7 +246,8 @@ void *getRamUsage(void *thread_container){
 			// Output
 			if ( !(Program_Flag & pf_No_CLI_Output) ){
 
-				CONSOLE_GOTO(0, tc->id);
+				tc->output_line = tc->id;
+				CONSOLE_GOTO(0, tc->output_line);
 				g_fprintf(STD, CONSOLE_ERASE_LINE " RAM:\t\t%s / %s\n", bytes_to_str(usage), bytes_to_str(capacity) );	
 				CONSOLE_GOTO(0, Last_Thread_Id + 1);
 				g_fprintf(STD, CONSOLE_ERASE_LINE);
@@ -324,7 +330,8 @@ void *getDiskUsage(void *thread_container){
 	// Initial Output
 	if ( !(Program_Flag & pf_No_CLI_Output) ){
 
-		CONSOLE_GOTO(0, tc->id);
+		tc->output_line = tc->id;
+		CONSOLE_GOTO(0, tc->output_line);
 		g_fprintf(STD, CONSOLE_ERASE_LINE " Disk: %-10s\tWaiting for %" PRIu32 "ms...\n", dip->name, tc->interval);	
 		CONSOLE_GOTO(0, Last_Thread_Id + 1);
 		g_fprintf(STD, CONSOLE_ERASE_LINE);
@@ -361,7 +368,7 @@ void *getDiskUsage(void *thread_container){
 			if ( !(Program_Flag & pf_No_CLI_Output) ){
 
 				CONSOLE_GOTO(0, tc->id);
-				g_fprintf(STD, CONSOLE_ERASE_LINE " Disk: %-10s\tRead: %7s /%" PRIu32 "ms\tWrite: %7s /%" PRIu32 "ms\n", dip->name, bytes_to_str(dip->read_bytes), tc->interval, bytes_to_str(dip->written_bytes), tc->interval);	
+				g_fprintf(STD, CONSOLE_ERASE_LINE " Disk: %-7s\tRead: %7s /%" PRIu32 "ms\tWrite: %7s /%" PRIu32 "ms\n", dip->name, bytes_to_str(dip->read_bytes), tc->interval, bytes_to_str(dip->written_bytes), tc->interval);	
 				CONSOLE_GOTO(0, Last_Thread_Id + 1);
 				g_fprintf(STD, CONSOLE_ERASE_LINE);
 				fflush(STD);
@@ -452,8 +459,9 @@ void * getNetworkIntUsage(void *thread_container){
 	// Initial Output
 	if ( !(Program_Flag & pf_No_CLI_Output) ){
 
-		CONSOLE_GOTO(0, tc->id);
-		g_fprintf(STD, CONSOLE_ERASE_LINE " Network: %-10s\tWaiting for %" PRIu32 "ms...\n", nip->name, tc->interval);	
+		tc->output_line = tc->id;
+		CONSOLE_GOTO(0, tc->output_line);
+		g_fprintf(STD, CONSOLE_ERASE_LINE " Network: %-7s\tWaiting for %" PRIu32 "ms...\n", nip->name, tc->interval);	
 		CONSOLE_GOTO(0, Last_Thread_Id + 1);
 		g_fprintf(STD, CONSOLE_ERASE_LINE);
 		fflush(STD);
@@ -589,12 +597,14 @@ void * getFilesystemsUsage(void *thread_container){
 					
 					gfloat percentage_usage = (fss->info + i)->used / (gfloat) total_size * 100.0;
 
+					tc->output_line = Last_Thread_Id + 3 + i;
+					CONSOLE_GOTO(0, tc->output_line);
+					g_fprintf(STD, CONSOLE_ERASE_LINE " %s:\t%s / %s \t %2.2f%% \n", (fss->info + i)->partition, bytes_to_str((fss->info + i)->used), bytes_to_str(total_size), percentage_usage);
+
 					if (percentage_usage >= tc->alert_usage){
 						sendAlert(tc, percentage_usage);
 					}
 
-					CONSOLE_GOTO(0, Last_Thread_Id + 3 + i);
-					g_fprintf(STD, CONSOLE_ERASE_LINE " %s:\t%s / %s \t %2.2f%% \n", (fss->info + i)->partition, bytes_to_str((fss->info + i)->used), bytes_to_str(total_size), percentage_usage);
 				}
 
 				CONSOLE_GOTO(0, Last_Thread_Id + 1);

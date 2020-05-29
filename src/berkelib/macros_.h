@@ -30,6 +30,7 @@
 #define CYAN_BOLD(X) 	"\033[1;34m" X "\033[0m"
 #define PINK_BOLD(X) 	"\033[1;35m" X "\033[0m"
 #define TEAL_BOLD(X) 	"\033[1;36m" X "\033[0m"
+#define WHITE_BOLD(X) 	"\033[1;37m" X "\033[0m"
 
 #define PR_VAR(T, X)	CYAN_BOLD(#X) ": %" T "\n"
 #define SOUT(T, X)		fprintf(STD, PR_VAR(T, X), X)

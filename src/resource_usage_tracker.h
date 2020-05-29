@@ -70,6 +70,7 @@ typedef struct rut_config{
 typedef struct resource_thread{
 	pthread_t thread;
 	uint16_t id;
+	uint16_t output_line;
 	uint32_t interval;
 	gfloat alert_usage;
 	void *parameter;
