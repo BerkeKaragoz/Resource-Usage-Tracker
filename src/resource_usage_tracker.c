@@ -89,13 +89,12 @@ void sendAlert (resource_thread_ty *thread_container, gfloat usage){
 *
 */
 
-// 1000 ms is stable
-// cat <(grep cpu /proc/stat) <(sleep 0.1 && grep cpu /proc/stat) | awk -v RS="" '{printf "%.1f", ($13-$2+$15-$4)*100/($13-$2+$15-$4+$16-$5)}
-void *getCpuUsage(void *thread_container){
-
+void initCpu(void *thread_container){
 /*
 *	Test The Parameter
 */
+
+	pthread_mutex_lock(&Cpu_Mutex);
 
 	resource_thread_ty *tc = (resource_thread_ty *) thread_container;
 
@@ -106,13 +105,14 @@ void *getCpuUsage(void *thread_container){
 
 	}
 
+	cpu_ty *c = (cpu_ty *) tc->parameter;
+
 /*
 *	Initialize CPU Timings
 */
 
-	uint32_t total = 0,	idle = 0;
-
-	pthread_mutex_lock(&Cpu_Mutex);
+	c->total = 0;
+	c->idle = 0;
 
 	// Initial Output
 	if ( !(Program_Flag & pf_No_CLI_Output) ){
@@ -126,10 +126,54 @@ void *getCpuUsage(void *thread_container){
 
 	}//
 
-	getCpuTimings(&total, &idle, PASS_WITH_SIZEOF("cpu"));
+	getCpuTimings(&c->total, &c->idle, PASS_WITH_SIZEOF("cpu"));
 	Init_State |= is_Cpu;
 
 	pthread_mutex_unlock(&Cpu_Mutex);
+}
+
+void initRam(void *thread_container){
+
+	resource_thread_ty *tc = (resource_thread_ty *) thread_container;
+
+	ram_ty *r = (ram_ty *) tc->parameter;
+
+
+	r->capacity = getFirstVarNumValue(PATH_MEM_INFO, PASS_WITH_SIZEOF("MemTotal:"), 0);
+
+	r->usage = getFirstVarNumValue(PATH_MEM_INFO, PASS_WITH_SIZEOF("Active:"), 0);
+
+
+	Init_State |= is_Ram;
+}
+
+void initFilesystems(void *thread_container){
+
+	resource_thread_ty *tc = (resource_thread_ty *) thread_container;
+
+	filesystems_ty *fss = (filesystems_ty *) tc->parameter;
+
+
+	pthread_mutex_lock(&File_sys_Mutex);
+
+	getPhysicalFilesystems(fss);
+	Init_State |= is_Filesystems;
+
+	pthread_mutex_unlock(&File_sys_Mutex);
+}
+
+/*
+*
+*/
+
+// 1000 ms is min. stable
+// cat <(grep cpu /proc/stat) <(sleep 0.1 && grep cpu /proc/stat) | awk -v RS="" '{printf "%.1f", ($13-$2+$15-$4)*100/($13-$2+$15-$4+$16-$5)}
+void *getCpuUsage(void *thread_container){
+
+	initCpu(thread_container);
+
+	resource_thread_ty *tc = (resource_thread_ty *) thread_container;
+	cpu_ty *c = (cpu_ty *) tc->parameter;
 
 	sleep_ms(tc->interval);
 
@@ -148,12 +192,12 @@ void *getCpuUsage(void *thread_container){
 
 			pthread_mutex_lock(&Cpu_Mutex);
 
-			prev_idle 	= idle;
-			prev_total 	= total;
+			prev_idle 	= c->idle;
+			prev_total 	= c->total;
 
-			getCpuTimings(&total, &idle, PASS_WITH_SIZEOF("cpu"));
+			getCpuTimings(&c->total, &c->idle, PASS_WITH_SIZEOF("cpu"));
 		
-			usage = 100.0 * ( 1.0 - (gfloat)(idle - prev_idle) / (gfloat)(total - prev_total) );
+			usage = 100.0 * ( 1.0 - (gfloat)(c->idle - prev_idle) / (gfloat)(c->total - prev_total) );
 			
 			// Check Usage if it is corrupted
 			if ( isnan(usage) ){
@@ -193,7 +237,7 @@ void *getCpuUsage(void *thread_container){
 					PR_VAR(PRId32, delta-idle)		\
 					PR_VAR(PRId32, delta-total)		\
 				CYAN_BOLD(" ---\n") 				\
-				, tc->id, usage, tc->alert_usage, tc->interval, idle - prev_idle, total - prev_total
+				, tc->id, usage, tc->alert_usage, tc->interval, c->idle - prev_idle, c->total - prev_total
 			);
 #endif
 			// tuptuO
@@ -216,18 +260,10 @@ void *getCpuUsage(void *thread_container){
 
 void *getRamUsage(void *thread_container){
 
-/*
-*	Parameter Conversion
-*/
+	initRam(thread_container);
 
 	resource_thread_ty *tc = (resource_thread_ty *) thread_container;
-
-/*
-*	Get RAM Capacity ( Initialize )
-*/
-
-	size_t capacity = getFirstVarNumValue(PATH_MEM_INFO, PASS_WITH_SIZEOF("MemTotal:"), 0);
-	Init_State |= is_Ram;
+	ram_ty *r = (ram_ty *) tc->parameter;
 
 /*
 *	Get RAM Usage Till The Program Stops
@@ -237,18 +273,18 @@ void *getRamUsage(void *thread_container){
 
 		while( Program_State & ps_Running ){
 
-			size_t usage = getFirstVarNumValue(PATH_MEM_INFO, PASS_WITH_SIZEOF("Active:"), 0);
+			r->usage = getFirstVarNumValue(PATH_MEM_INFO, PASS_WITH_SIZEOF("Active:"), 0);
 			
 			pthread_mutex_lock(&Ram_Mutex);
 
-			gfloat percentage_usage = usage * 100.0 / (gfloat) capacity;
+			gfloat percentage_usage = r->usage * 100.0 / (gfloat) r->capacity;
 
 			// Output
 			if ( !(Program_Flag & pf_No_CLI_Output) ){
 
 				tc->output_line = tc->id;
 				CONSOLE_GOTO(0, tc->output_line);
-				g_fprintf(STD, CONSOLE_ERASE_LINE " RAM:\t\t%s / %s\n", bytes_to_str(usage), bytes_to_str(capacity) );	
+				g_fprintf(STD, CONSOLE_ERASE_LINE " RAM:\t\t%s / %s\n", bytes_to_str(r->usage), bytes_to_str(r->capacity) );	
 				CONSOLE_GOTO(0, Last_Thread_Id + 1);
 				g_fprintf(STD, CONSOLE_ERASE_LINE);
 				fflush(STD);
@@ -274,7 +310,7 @@ void *getRamUsage(void *thread_container){
 				PR_VAR("zu", usage)			\
 				PR_VAR("zu", capacity)		\
 			CYAN_BOLD(" ---\n") 				\
-			, tc->id, tc->interval, percentage_usage, tc->alert_usage, usage, capacity 
+			, tc->id, tc->interval, percentage_usage, tc->alert_usage, r->usage, r->capacity 
 		);
 #endif
 			// tuptuO
@@ -557,6 +593,8 @@ void * getNetworkIntUsage(void *thread_container){
 
 void * getFilesystemsUsage(void *thread_container){
 
+	initFilesystems(thread_container);
+
 /*
 *	Parameter Conversion
 */
@@ -565,16 +603,6 @@ void * getFilesystemsUsage(void *thread_container){
 
 	filesystems_ty *fss = (filesystems_ty *) tc->parameter;
 
-/*
-*	Get FSs Capacity ( Initialize )
-*/
-
-	pthread_mutex_lock(&File_sys_Mutex);
-
-	getPhysicalFilesystems(fss);
-	Init_State |= is_Filesystems;
-
-	pthread_mutex_unlock(&File_sys_Mutex);
 	
 /*
 *	Get RAM Usage Till The Program Stops

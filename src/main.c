@@ -35,6 +35,8 @@ int main (int argc, char * const argv[]){
 
 	rut_config_ty config;
 
+	cpu_ty cpu;
+	ram_ty ram;
 	disks_ty disks;
 	filesystems_ty filesystems;
 	net_ints_ty netints;
@@ -191,7 +193,7 @@ int main (int argc, char * const argv[]){
 	cpu_tc.id = Last_Thread_Id++;
 	cpu_tc.interval = config.cpu_interval;
 	cpu_tc.alert_usage = config.cpu_alert_usage;
-	cpu_tc.parameter = NULL;
+	cpu_tc.parameter = &cpu;
 
 	pthread_create(&cpu_tc.thread, NULL, getCpuUsage, &cpu_tc); // CPU
 	//upC
@@ -200,7 +202,7 @@ int main (int argc, char * const argv[]){
 	ram_tc.id = Last_Thread_Id++;
 	ram_tc.interval = config.ram_interval;
 	ram_tc.alert_usage = config.ram_alert_usage;
-	ram_tc.parameter = NULL;
+	ram_tc.parameter = &ram;
 
 	pthread_create(&ram_tc.thread, NULL, getRamUsage, &ram_tc);
 	//maR

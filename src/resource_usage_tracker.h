@@ -112,6 +112,14 @@ typedef struct network_interfaces{
 	uint16_t count;
 }net_ints_ty;
 
+typedef struct ram_info{
+	size_t usage, capacity;
+}ram_ty;
+
+typedef struct cpu_info{
+	uint32_t total, idle;
+}cpu_ty;
+
 // Globals
 extern uint16_t Last_Thread_Id;
 
@@ -124,6 +132,10 @@ extern enum initialization_states 	Init_State;
 void *		timeLimit				(void *thread_container);
 
 void		sendAlert				(resource_thread_ty *thread_container, gfloat usage);
+
+void 		initCpu					(void *thread_container);
+void 		initRam					(void *thread_container);
+void 		initFilesystems			(void *thread_container);
 
 void * 		getCpuUsage				(void *thread_container);
 void *		getRamUsage				(void *thread_container);
