@@ -85,7 +85,7 @@ struct disk_info{
 };
 
 typedef struct disks{
-	struct resource_thread *threads;
+	resource_thread_ty *threads;
 	uint16_t count;
 }disks_ty;
 
@@ -133,10 +133,13 @@ extern enum initialization_states 	Init_State;
 // Functions
 void		sendAlert				(resource_thread_ty *thread_container, gfloat usage);
 
+void 		init					(resource_thread_ty *cpu_th, resource_thread_ty *ram_th,resource_thread_ty *fss_th, disks_ty *disks);
 void *		timeLimit				(void *thread_container);
 
 void 		initCpu					(void *thread_container);
 void 		initRam					(void *thread_container);
+void 		initDisk				(void *thread_container);
+void 		initDisks				(disks_ty *disks);
 void 		initFilesystems			(void *thread_container);
 
 void * 		getCpuUsage				(void *thread_container);

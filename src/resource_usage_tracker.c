@@ -61,8 +61,21 @@ void sendAlert (resource_thread_ty *thread_container, gfloat usage){
 *
 */
 
-void init(){
+void init(resource_thread_ty *cpu_th, resource_thread_ty *ram_th,resource_thread_ty *fss_th, disks_ty *disks){
 	// TODO
+
+	if (cpu_th != NULL)
+		initCpu(cpu_th);
+
+	if (ram_th != NULL)
+		initRam(ram_th);
+
+	if (fss_th != NULL)
+		initFilesystems(fss_th);
+		
+	if (disks != NULL)
+		initDisks(disks);
+	
 }
 
 void *timeLimit (void *thread_container){
@@ -201,13 +214,19 @@ void initDisk(void *thread_container){
 	free(read_write);
 	free(input_cmd);
 
-	Init_State |= is_Disk_io; // TEMP
-
 	pthread_mutex_unlock(&Disk_io_Mutex);
 }
 
-void initDisks(disks_ty disks){
+void initDisks(disks_ty *disks){
 	
+	for(uint16_t i = 0; i < disks->count; i++){
+
+		initDisk( &(disks->threads + i)->thread );
+
+	}
+
+	Init_State |= is_Disk_io;
+
 }
 
 void initFilesystems(void *thread_container){
@@ -328,10 +347,11 @@ void *getRamUsage(void *thread_container){
 
 	initRam(thread_container);
 
-
 	resource_thread_ty *tc = (resource_thread_ty *) thread_container;
 
 	ram_ty *r = (ram_ty *) tc->parameter;
+
+	sleep_ms(tc->interval);
 
 /*
 *	Get RAM Usage Till The Program Stops
@@ -634,7 +654,7 @@ void *getNetworkIntUsage(void *thread_container){
 	
 }
 
-void * getFilesystemsUsage(void *thread_container){
+void *getFilesystemsUsage(void *thread_container){
 
 	initFilesystems(thread_container);
 
@@ -958,8 +978,6 @@ gchar* getSystemDisk(gchar* os_partition_name, gchar* maj_no){
 // $ cat "PATH_DISK_STATS" | awk '$2 == 0 {print $3}'
 void getAllDisks(disks_ty *disks){
 
-	struct disk_info *disk_infos = (struct disk_info *) disks->threads->parameter;
-
 	gchar **temp = NULL;
 
 	str_split(&temp , run_command("awk '$2 == 0 {print $3}' "PATH_DISK_STATS), '\n', (size_t *) &disks->count);
@@ -983,21 +1001,32 @@ void getAllDisks(disks_ty *disks){
 	}//for
 	// LLUN fi eteleD
 
-	disk_infos = (struct disk_info *)g_malloc(sizeof(struct disk_info) * disks->count);
 
-	for (i = 0; i < disks->count; i++){
-		(disk_infos + i)->name = *(temp + i);
+	disks->threads = g_malloc(disks->count * sizeof(resource_thread_ty));
+
+	struct disk_info *di = g_malloc(disks->count * sizeof(struct disk_info));
+
+	for (i = 0 ; i < disks->count; i++){
+		
+		(di+i)->name = *(temp + i);
+
+		(disks->threads + i)->parameter = (void *) (di + i);
 	}
 
 	g_free(temp);
 
+
 #ifdef DEBUG_RUT
 	g_fprintf(STD, CYAN_BOLD(" --- getAllDisks() ---\n"));
+
 	SOUT("d", disks->count);
+
 	g_fprintf(STD, CYAN_BOLD("Disk Names:\n"));
+
 	for(uint16_t i = 0 ; i < disks->count; i++){
-		g_fprintf(STD, CYAN_BOLD("-")"%s\n", (*(disk_infos + i)).name);
+		g_fprintf(STD, CYAN_BOLD("-")"%s\n", (di+i)->name);
 	}
+
 	g_fprintf(STD, CYAN_BOLD(" ---\n"));
 #endif
 
