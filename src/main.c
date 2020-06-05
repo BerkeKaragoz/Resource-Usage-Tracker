@@ -152,10 +152,10 @@ int main (int argc, char * const argv[]){
 		}//switch
 	}
 
-	getAllDisks(&disks); //Disks
+	//getAllDisks(&disks); //Disks
 	getNetworkInterfaces(&netints); //Network Interfaces
 
-
+/*
 	if(disks.count > 1)
 	{
 		
@@ -167,7 +167,7 @@ int main (int argc, char * const argv[]){
 		exit(EXIT_FAILURE);
 
 	}
-
+*/
 	if (config.timelimit_ms > 0){
 		resource_thread_ty tlc;
 
@@ -182,7 +182,7 @@ int main (int argc, char * const argv[]){
 *	Allocate
 */
 
-	disk_io_tcs = g_malloc(disks.count   * sizeof(resource_thread_ty));
+//	disk_io_tcs = g_malloc(disks.count   * sizeof(resource_thread_ty));
 	net_int_tcs = g_malloc(netints.count * sizeof(resource_thread_ty));
 
 /*
@@ -215,18 +215,19 @@ int main (int argc, char * const argv[]){
 
 	pthread_create(&fss_tc.thread, NULL, getFilesystemsUsage, &fss_tc);
 	//smetsyseliF
-
+/*
 	//Disk
 	for (uint16_t i = 0; i < disks.count; i++){ // Disks Reads/Writes
+		*(disks.threads + i) = *(disk_io_tcs + i);
 		(*(disk_io_tcs + i)).id = Last_Thread_Id++;
 		(*(disk_io_tcs + i)).interval = config.disk_interval;
 		(*(disk_io_tcs + i)).alert_usage = config.disk_alert_usage;
-		(disk_io_tcs + i) -> parameter = disks.info + i;
+		(disk_io_tcs + i) -> parameter = (disks.threads + i)->parameter;
 
 		pthread_create( &(disk_io_tcs + i)->thread, NULL, getDiskUsage, disk_io_tcs + i );
 	}
 	//ksiD
-
+*/
 	//Network
 	for (uint16_t i = 0; i < netints.count; i++){ // Get Network Interface Infos
 		(*(net_int_tcs + i)).id = Last_Thread_Id++;
@@ -241,11 +242,11 @@ int main (int argc, char * const argv[]){
 /*
 *	Join
 */
-
+/*
 	for (uint16_t i = 0; i < disks.count; i++){ // Join Thread Disks
 		pthread_join( (disk_io_tcs + i)->thread, NULL );
 	}
-
+*/
 	for (uint16_t i = 0; i < netints.count; i++){ // Join Thread Network Interfaces
 		pthread_join( (net_int_tcs + i)->thread, NULL );
 	}
@@ -256,7 +257,7 @@ int main (int argc, char * const argv[]){
 *	Clean Up
 */
 
-	g_free(disk_io_tcs);
+//	g_free(disk_io_tcs);
 	g_free(net_int_tcs);
 	Program_State = ps_Stopped;
 

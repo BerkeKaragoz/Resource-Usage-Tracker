@@ -41,6 +41,30 @@ pthread_mutex_t Cpu_Mutex 		= PTHREAD_MUTEX_INITIALIZER,
 *	Functions
 */
 
+void sendAlert (resource_thread_ty *thread_container, gfloat usage){
+
+	if ( !(Program_Flag & pf_No_CLI_Output) ){
+
+		CONSOLE_GOTO(0, thread_container->output_line);
+		g_fprintf(STD, PINK_BOLD("█"));
+
+		CONSOLE_GOTO(0, Last_Thread_Id + 1);
+
+		g_fprintf(STD, CONSOLE_ERASE_LINE PINK_BOLD("[ALERT]") " Resource (" WHITE_BOLD("%" PRIu16) ") usage (" WHITE_BOLD("%2.2f%%") ") is over " WHITE_BOLD("%2.2f%%") " in last " WHITE_BOLD("%" PRIu16 "ms") "!",
+			thread_container->id, usage, thread_container->alert_usage, thread_container->interval
+		);
+	}
+
+}
+
+/*
+*
+*/
+
+void init(){
+	// TODO
+}
+
 void *timeLimit (void *thread_container){
 
 	resource_thread_ty tc = *((resource_thread_ty *) thread_container);
@@ -63,26 +87,6 @@ void *timeLimit (void *thread_container){
 	Program_State = ps_Stopped;
 
 	exit(EXIT_SUCCESS);
-}
-
-/*
-*
-*/
-
-void sendAlert (resource_thread_ty *thread_container, gfloat usage){
-
-	if ( !(Program_Flag & pf_No_CLI_Output) ){
-
-		CONSOLE_GOTO(0, thread_container->output_line);
-		g_fprintf(STD, PINK_BOLD("█"));
-
-		CONSOLE_GOTO(0, Last_Thread_Id + 1);
-
-		g_fprintf(STD, CONSOLE_ERASE_LINE PINK_BOLD("[ALERT]") " Resource (" WHITE_BOLD("%" PRIu16) ") usage (" WHITE_BOLD("%2.2f%%") ") is over " WHITE_BOLD("%2.2f%%") " in last " WHITE_BOLD("%" PRIu16 "ms") "!",
-			thread_container->id, usage, thread_container->alert_usage, thread_container->interval
-		);
-	}
-
 }
 
 /*
@@ -147,6 +151,65 @@ void initRam(void *thread_container){
 	Init_State |= is_Ram;
 }
 
+void initDisk(void *thread_container){
+/*
+*	Parameter conversion
+*/
+
+	resource_thread_ty *tc = (resource_thread_ty *) thread_container;
+
+	struct disk_info *dip = (struct disk_info *) tc->parameter;
+
+/*
+*	Defining Variables
+*/
+
+	gchar *input_cmd = (gchar *)g_malloc(
+		sizeof(dip->name) * sizeof(gchar) + sizeof("awk '$3 == \"\" {print $6\"\\t\"$10}' /proc/diskstats")
+	);
+
+	g_stpcpy(input_cmd, "awk '$3 == \"");
+	strcat(input_cmd, dip->name);
+	strcat(input_cmd, "\" {print $6\"\\t\"$10}' /proc/diskstats");
+
+	size_t temp_size = 0;
+	gchar **read_write 	= ( gchar ** ) g_malloc ( sizeof(gchar *) * 2 );
+
+/*
+*	Initialize I/O Values
+*/
+
+	pthread_mutex_lock(&Disk_io_Mutex);
+	
+	// Initial Output
+	if ( !(Program_Flag & pf_No_CLI_Output) ){
+
+		tc->output_line = tc->id;
+		CONSOLE_GOTO(0, tc->output_line);
+		g_fprintf(STD, CONSOLE_ERASE_LINE " Disk: %-10s\tWaiting for %" PRIu32 "ms...\n", dip->name, tc->interval);	
+		CONSOLE_GOTO(0, Last_Thread_Id + 1);
+		g_fprintf(STD, CONSOLE_ERASE_LINE);
+		fflush(STD);
+
+	}//
+
+	str_split(&read_write, run_command(input_cmd), '\t', &temp_size);
+
+	str_to_uint64(read_write[0], &dip->read_cache);
+	str_to_uint64(read_write[1], &dip->write_cache);
+
+	free(read_write);
+	free(input_cmd);
+
+	Init_State |= is_Disk_io; // TEMP
+
+	pthread_mutex_unlock(&Disk_io_Mutex);
+}
+
+void initDisks(disks_ty disks){
+	
+}
+
 void initFilesystems(void *thread_container){
 
 	resource_thread_ty *tc = (resource_thread_ty *) thread_container;
@@ -172,8 +235,11 @@ void *getCpuUsage(void *thread_container){
 
 	initCpu(thread_container);
 
+
 	resource_thread_ty *tc = (resource_thread_ty *) thread_container;
+
 	cpu_ty *c = (cpu_ty *) tc->parameter;
+
 
 	sleep_ms(tc->interval);
 
@@ -262,7 +328,9 @@ void *getRamUsage(void *thread_container){
 
 	initRam(thread_container);
 
+
 	resource_thread_ty *tc = (resource_thread_ty *) thread_container;
+
 	ram_ty *r = (ram_ty *) tc->parameter;
 
 /*
@@ -334,50 +402,13 @@ void *getRamUsage(void *thread_container){
 // $ awk '$3 == "<DISK_NAME>" {print $6"\t"$10}' /proc/diskstats
 void *getDiskUsage(void *thread_container){
 
-/*
-*	Parameter conversion
-*/
+	initDisk(thread_container);
+
 
 	resource_thread_ty *tc = (resource_thread_ty *) thread_container;
 
 	struct disk_info *dip = (struct disk_info *) tc->parameter;
 
-/*
-*	Defining Variables
-*/
-
-	gchar *input_cmd = (gchar *)g_malloc(
-		sizeof(dip->name) * sizeof(gchar) + sizeof("awk '$3 == \"\" {print $6\"\\t\"$10}' /proc/diskstats")
-	);
-
-	g_stpcpy(input_cmd, "awk '$3 == \"");
-	strcat(input_cmd, dip->name);
-	strcat(input_cmd, "\" {print $6\"\\t\"$10}' /proc/diskstats");
-
-	size_t temp_size = 0;
-	gchar ***read_write 	= ( gchar *** ) g_malloc ( sizeof(gchar **) * 2 );
-
-/*
-*	Initialize I/O Values
-*/
-
-	pthread_mutex_lock(&Disk_io_Mutex);
-	
-	// Initial Output
-	if ( !(Program_Flag & pf_No_CLI_Output) ){
-
-		tc->output_line = tc->id;
-		CONSOLE_GOTO(0, tc->output_line);
-		g_fprintf(STD, CONSOLE_ERASE_LINE " Disk: %-10s\tWaiting for %" PRIu32 "ms...\n", dip->name, tc->interval);	
-		CONSOLE_GOTO(0, Last_Thread_Id + 1);
-		g_fprintf(STD, CONSOLE_ERASE_LINE);
-		fflush(STD);
-
-	}//
-	str_split(read_write, run_command(input_cmd), '\t', &temp_size);
-	Init_State |= is_Disk_io;
-
-	pthread_mutex_unlock(&Disk_io_Mutex);
 
 	sleep_ms(tc->interval);
 
@@ -387,16 +418,30 @@ void *getDiskUsage(void *thread_container){
 
 	if( Init_State & is_Disk_io ){
 
+		size_t temp_size = 0;
+
+		gchar **read_write 	= ( gchar ** ) g_malloc ( sizeof(gchar *) * 2 );
+
+		gchar *input_cmd = (gchar *)g_malloc(
+			sizeof(dip->name) * sizeof(gchar) + sizeof("awk '$3 == \"\" {print $6\"\\t\"$10}' /proc/diskstats")
+		);
+
+		g_stpcpy(input_cmd, "awk '$3 == \"");
+		strcat(input_cmd, dip->name);
+		strcat(input_cmd, "\" {print $6\"\\t\"$10}' /proc/diskstats");
+
 		while( Program_State & ps_Running ){
 
 			pthread_mutex_lock(&Disk_io_Mutex);
 		
-			*(read_write + 1) = *read_write;
 
-			str_split(read_write, run_command(input_cmd), '\t', &temp_size);
+			str_split(&read_write, run_command(input_cmd), '\t', &temp_size);
 
-			dip -> read_bytes  = atoll(read_write[0][0]) - atoll(read_write[1][0]); // AR - BR
-			dip -> written_bytes = atoll(read_write[0][1]) - atoll(read_write[1][1]); // AW - BW
+			dip -> read_bytes  	 = atoll(read_write[0]) - dip -> read_cache;
+			dip -> written_bytes = atoll(read_write[1]) - dip -> write_cache;
+
+			str_to_uint64(read_write[0], &dip->read_cache);
+			str_to_uint64(read_write[1], &dip->write_cache);
 
 			//TODO alert
 
@@ -415,14 +460,14 @@ void *getDiskUsage(void *thread_container){
 	g_fprintf(STD,
 		CYAN_BOLD(" --- getDiskUsage(")"%s"CYAN_BOLD(") --- Thread: %d\n") \
 			PR_VAR("d", Disk_Interval)		\
-			PR_VAR("s", read_write[0][0])	\
-			PR_VAR("s", read_write[0][1])	\
-			PR_VAR("s", read_write[1][0])	\
-			PR_VAR("s", read_write[1][1])	\
-			PR_VAR("d", dip->read_bytes)		\
+			PR_VAR("zu", read_cache)		\
+			PR_VAR("zu", write_cache)		\
+			PR_VAR("s", read_write[0])		\
+			PR_VAR("s", read_write[1])		\
+			PR_VAR("d", dip->read_bytes)	\
 			PR_VAR("d", dip->written_bytes)	\
 		CYAN_BOLD(" ---\n") 				\
-		, dip->name, tc->id, tc->interval, read_write[0][0], read_write[0][1], read_write[1][0], read_write[1][1], dip->read_bytes, dip->written_bytes
+		, dip->name, tc->id, tc->interval, dip->read_cache, dip->write_cache, read_write[0], read_write[1], dip->read_bytes, dip->written_bytes
 	);
 #endif
 			// tuptuO
@@ -433,18 +478,16 @@ void *getDiskUsage(void *thread_container){
 
 		}
 
-	} else {
-
 		g_free(input_cmd);
 		g_free(read_write);
+
+	} else {
 
 		g_fprintf(STD, RED_BOLD("[ERROR]") " Disk I/O values are not initialized.\n");
 		return NULL;
 
 	}
 
-	g_free(input_cmd);
-	g_free(read_write);
 	return NULL;
 }
 
@@ -457,7 +500,7 @@ awk '{if(l1){print $2-l1,$10-l2} else{l1=$2; l2=$10;}}' \
 <(grep NET_INT_NAME /proc/net/dev) <(sleep 1; grep NET_INT_NAME /proc/net/dev)
 */
 //tail -n +3 /proc/net/dev | grep NET_INT_NAME | column -t
-void * getNetworkIntUsage(void *thread_container){
+void *getNetworkIntUsage(void *thread_container){
 
 /*
 *	Parameter conversion
@@ -914,6 +957,9 @@ gchar* getSystemDisk(gchar* os_partition_name, gchar* maj_no){
 // Get disks names and maj if minor no is == 0
 // $ cat "PATH_DISK_STATS" | awk '$2 == 0 {print $3}'
 void getAllDisks(disks_ty *disks){
+
+	struct disk_info *disk_infos = (struct disk_info *) disks->threads->parameter;
+
 	gchar **temp = NULL;
 
 	str_split(&temp , run_command("awk '$2 == 0 {print $3}' "PATH_DISK_STATS), '\n', (size_t *) &disks->count);
@@ -937,10 +983,10 @@ void getAllDisks(disks_ty *disks){
 	}//for
 	// LLUN fi eteleD
 
-	disks->info = (struct disk_info *)g_malloc(sizeof(struct disk_info) * disks->count);
+	disk_infos = (struct disk_info *)g_malloc(sizeof(struct disk_info) * disks->count);
 
 	for (i = 0; i < disks->count; i++){
-		(disks->info + i)->name = *(temp + i);
+		(disk_infos + i)->name = *(temp + i);
 	}
 
 	g_free(temp);
@@ -950,7 +996,7 @@ void getAllDisks(disks_ty *disks){
 	SOUT("d", disks->count);
 	g_fprintf(STD, CYAN_BOLD("Disk Names:\n"));
 	for(uint16_t i = 0 ; i < disks->count; i++){
-		g_fprintf(STD, CYAN_BOLD("-")"%s\n", (*((*disks).info + i)).name);
+		g_fprintf(STD, CYAN_BOLD("-")"%s\n", (*(disk_infos + i)).name);
 	}
 	g_fprintf(STD, CYAN_BOLD(" ---\n"));
 #endif

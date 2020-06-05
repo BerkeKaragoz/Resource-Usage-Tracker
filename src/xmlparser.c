@@ -58,7 +58,7 @@ int readXmlTree(rut_config_ty *config, char *file){
 		g_fprintf(STD, "(XML) Parsing failed!\n");
 		return 1;
 	}
-
+	
 	root_element = xmlDocGetRootElement(doc);
 
 #ifdef DEBUG_RUT

@@ -12,7 +12,7 @@
 
 #include "berkelib/macros_.h"
 
-//#define DEBUG_RUT
+#define DEBUG_RUT
 #define MAX_THREADS 64
 #define DEFAULT_GLOBAL_INTERVAL 1000
 #define POLICY_FILE "xml/rut.xml"
@@ -78,12 +78,14 @@ typedef struct resource_thread{
 
 struct disk_info{
 	gchar *name;
+	size_t read_cache;
+	size_t write_cache;
 	size_t read_bytes;
 	size_t written_bytes;
 };
 
 typedef struct disks{
-	struct disk_info *info;
+	struct resource_thread *threads;
 	uint16_t count;
 }disks_ty;
 
@@ -129,9 +131,9 @@ extern enum initialization_states 	Init_State;
 
 
 // Functions
-void *		timeLimit				(void *thread_container);
-
 void		sendAlert				(resource_thread_ty *thread_container, gfloat usage);
+
+void *		timeLimit				(void *thread_container);
 
 void 		initCpu					(void *thread_container);
 void 		initRam					(void *thread_container);
