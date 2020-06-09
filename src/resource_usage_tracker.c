@@ -61,7 +61,14 @@ void sendAlert (resource_thread_ty *thread_container, gfloat usage){
 *
 */
 
-void init(resource_thread_ty *cpu_th, resource_thread_ty *ram_th,resource_thread_ty *fss_th, disks_ty *disks){
+void init(
+		rut_config_ty *config,
+		uint16_t *last_thread_id,
+		resource_thread_ty *cpu_th,
+		resource_thread_ty *ram_th,
+		resource_thread_ty *fss_th,
+		disks_ty *disks
+	){
 	// TODO
 
 	if (cpu_th != NULL)
@@ -74,7 +81,7 @@ void init(resource_thread_ty *cpu_th, resource_thread_ty *ram_th,resource_thread
 		initFilesystems(fss_th);
 		
 	if (disks != NULL)
-		initDisks(disks);
+		initDisks(disks, config, last_thread_id);
 	
 }
 
@@ -164,14 +171,14 @@ void initRam(void *thread_container){
 	Init_State |= is_Ram;
 }
 
-void initDisk(void *thread_container){
+void *initDisk(void *thread_container){
 /*
 *	Parameter conversion
 */
 
 	resource_thread_ty *tc = (resource_thread_ty *) thread_container;
 
-	struct disk_info *dip = (struct disk_info *) tc->parameter;
+	struct disk_info *dip = (struct disk_info *) tc->parameter; //sumtingwong here
 
 /*
 *	Defining Variables
@@ -191,8 +198,6 @@ void initDisk(void *thread_container){
 /*
 *	Initialize I/O Values
 */
-
-	pthread_mutex_lock(&Disk_io_Mutex);
 	
 	// Initial Output
 	if ( !(Program_Flag & pf_No_CLI_Output) ){
@@ -214,19 +219,40 @@ void initDisk(void *thread_container){
 	free(read_write);
 	free(input_cmd);
 
-	pthread_mutex_unlock(&Disk_io_Mutex);
 }
 
-void initDisks(disks_ty *disks){
-	
-	for(uint16_t i = 0; i < disks->count; i++){
+void initDisks(disks_ty *disks, rut_config_ty *config, uint16_t *last_thread_id){
 
-		initDisk( &(disks->threads + i)->thread );
+	getAllDisks(disks);
+
+
+	uint16_t i;
+
+	for(i = 0; i < disks->count; i++){
+
+		(disks->threads + i) -> id = (*last_thread_id)++;
+
+		(disks->threads + i) -> interval = config->disk_interval;
+
+		(disks->threads + i) -> alert_usage = config->disk_alert_usage;
+
+
+		pthread_create( &(disks->threads + i)->thread, NULL, initDisk, disks->threads + i );
+
+	}
+
+	for (i = 0; i < disks->count; i++){ // Join Thread Disks
+
+		pthread_join( (disks->threads + i)->thread, NULL );
 
 	}
 
 	Init_State |= is_Disk_io;
 
+}
+
+void initNetworkInts(){
+	
 }
 
 void initFilesystems(void *thread_container){
@@ -422,7 +448,7 @@ void *getRamUsage(void *thread_container){
 // $ awk '$3 == "<DISK_NAME>" {print $6"\t"$10}' /proc/diskstats
 void *getDiskUsage(void *thread_container){
 
-	initDisk(thread_container);
+	//initDisk(thread_container);
 
 
 	resource_thread_ty *tc = (resource_thread_ty *) thread_container;
@@ -1002,9 +1028,9 @@ void getAllDisks(disks_ty *disks){
 	// LLUN fi eteleD
 
 
-	disks->threads = g_malloc(disks->count * sizeof(resource_thread_ty));
+	disks->threads = (resource_thread_ty *)g_malloc(disks->count * sizeof(resource_thread_ty));
 
-	struct disk_info *di = g_malloc(disks->count * sizeof(struct disk_info));
+	struct disk_info *di = (struct disk_info *)g_malloc(disks->count * sizeof(struct disk_info));
 
 	for (i = 0 ; i < disks->count; i++){
 		

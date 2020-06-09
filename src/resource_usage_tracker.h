@@ -133,13 +133,13 @@ extern enum initialization_states 	Init_State;
 // Functions
 void		sendAlert				(resource_thread_ty *thread_container, gfloat usage);
 
-void 		init					(resource_thread_ty *cpu_th, resource_thread_ty *ram_th,resource_thread_ty *fss_th, disks_ty *disks);
+void 		init					(rut_config_ty *config, uint16_t *last_thread_id, resource_thread_ty *cpu_th, resource_thread_ty *ram_th, resource_thread_ty *fss_th, disks_ty *disks);
 void *		timeLimit				(void *thread_container);
 
 void 		initCpu					(void *thread_container);
 void 		initRam					(void *thread_container);
-void 		initDisk				(void *thread_container);
-void 		initDisks				(disks_ty *disks);
+void *		initDisk				(void *thread_container);
+void 		initDisks				(disks_ty *disks, rut_config_ty *config, uint16_t *last_thread_id);
 void 		initFilesystems			(void *thread_container);
 
 void * 		getCpuUsage				(void *thread_container);

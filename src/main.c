@@ -152,9 +152,9 @@ int main (int argc, char * const argv[]){
 		}//switch
 	}
 
-	getAllDisks(&disks); //Disks
 	getNetworkInterfaces(&netints); //Network Interfaces
 
+	initDisks(&disks, &config, &Last_Thread_Id);
 
 	if(disks.count > 1)
 	{
@@ -218,13 +218,6 @@ int main (int argc, char * const argv[]){
 	//Disk
 	for (uint16_t i = 0; i < disks.count; i++){ // Disks Reads/Writes
 
-		(disks.threads + i) -> id = Last_Thread_Id++;
-
-		(disks.threads + i) -> interval = config.disk_interval;
-
-		(disks.threads + i) -> alert_usage = config.disk_alert_usage;
-
-
 		pthread_create( &(disks.threads + i)->thread, NULL, getDiskUsage, disks.threads + i );
 
 	}
@@ -244,11 +237,11 @@ int main (int argc, char * const argv[]){
 /*
 *	Join
 */
-/*
+
 	for (uint16_t i = 0; i < disks.count; i++){ // Join Thread Disks
-		pthread_join( (disk_io_tcs + i)->thread, NULL );
+		pthread_join( (disks.threads + i)->thread, NULL );
 	}
-*/
+
 	for (uint16_t i = 0; i < netints.count; i++){ // Join Thread Network Interfaces
 		pthread_join( (net_int_tcs + i)->thread, NULL );
 	}
@@ -259,7 +252,6 @@ int main (int argc, char * const argv[]){
 *	Clean Up
 */
 
-//	g_free(disk_io_tcs);
 	g_free(net_int_tcs);
 	Program_State = ps_Stopped;
 
