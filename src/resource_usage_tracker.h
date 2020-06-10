@@ -78,16 +78,17 @@ typedef struct resource_thread{
 
 struct disk_info{
 	gchar *name;
-	size_t read_cache;
-	size_t write_cache;
+
 	size_t read_bytes;
 	size_t written_bytes;
+	size_t read_cache;
+	size_t write_cache;
 };
 
-typedef struct disks{
+typedef struct resource{
 	resource_thread_ty *threads;
 	uint16_t count;
-}disks_ty;
+}resource_ty;
 
 struct filesystem_info{
 	gchar *partition;
@@ -104,15 +105,13 @@ typedef struct filesystems{
 struct net_int_info{
 	gchar *name;
 	uint16_t type;
+
 	size_t bandwith_mbps;
 	size_t up_bps;
 	size_t down_bps;
+	size_t up_cache;
+	size_t down_cache;
 };
-
-typedef struct network_interfaces{
-	struct net_int_info *info;
-	uint16_t count;
-}net_ints_ty;
 
 typedef struct ram_info{
 	size_t usage, capacity;
@@ -133,13 +132,15 @@ extern enum initialization_states 	Init_State;
 // Functions
 void		sendAlert				(resource_thread_ty *thread_container, gfloat usage);
 
-void 		init					(rut_config_ty *config, uint16_t *last_thread_id, resource_thread_ty *cpu_th, resource_thread_ty *ram_th, resource_thread_ty *fss_th, disks_ty *disks);
+void 		init					(rut_config_ty *config, uint16_t *last_thread_id, resource_thread_ty *cpu_th, resource_thread_ty *ram_th, resource_thread_ty *fss_th, resource_ty *disks);
 void *		timeLimit				(void *thread_container);
 
 void 		initCpu					(void *thread_container);
 void 		initRam					(void *thread_container);
 void *		initDisk				(void *thread_container);
-void 		initDisks				(disks_ty *disks, rut_config_ty *config, uint16_t *last_thread_id);
+void 		initDisks				(resource_ty *disks, rut_config_ty *config, uint16_t *last_thread_id);
+void *		initNetworkInt			(void *thread_container);
+void 		initNetworkInts			(resource_ty *netints, rut_config_ty *config, uint16_t *last_thread_id);
 void 		initFilesystems			(void *thread_container);
 
 void * 		getCpuUsage				(void *thread_container);
@@ -149,11 +150,11 @@ void *		getNetworkIntUsage		(void *thread_container);
 void *		getFilesystemsUsage		(void *thread_container);
 
 void 		getCpuTimings			(uint32_t *cpu_total, uint32_t *cpu_idle, REQUIRE_WITH_SIZE(gchar *, cpu_identifier));
-void 		getNetworkInterfaces	(net_ints_ty *netints);
+void 		getNetworkInterfaces	(resource_ty *netints);
 
 int64_t 	getFirstVarNumValue		(const gchar* path, REQUIRE_WITH_SIZE(const gchar*, variable), const uint16_t variable_column_no );
 gchar * 	getSystemDisk			(gchar* os_partition_name, gchar* maj_no);
-void 		getAllDisks				(disks_ty *disks);
+void 		getAllDisks				(resource_ty *disks);
 void 		getPhysicalFilesystems	(filesystems_ty *filesystems);
 
 

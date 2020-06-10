@@ -67,7 +67,7 @@ void init(
 		resource_thread_ty *cpu_th,
 		resource_thread_ty *ram_th,
 		resource_thread_ty *fss_th,
-		disks_ty *disks
+		resource_ty *disks
 	){
 	// TODO
 
@@ -221,7 +221,7 @@ void *initDisk(void *thread_container){
 
 }
 
-void initDisks(disks_ty *disks, rut_config_ty *config, uint16_t *last_thread_id){
+void initDisks(resource_ty *disks, rut_config_ty *config, uint16_t *last_thread_id){
 
 	getAllDisks(disks);
 
@@ -251,8 +251,82 @@ void initDisks(disks_ty *disks, rut_config_ty *config, uint16_t *last_thread_id)
 
 }
 
-void initNetworkInts(){
+void *initNetworkInt(void *thread_container){
 	
+	resource_thread_ty *tc = (resource_thread_ty *) thread_container;
+
+	struct net_int_info *nii = (struct net_int_info *) tc->parameter;
+
+/*
+*	Defining Variables
+*/
+
+	size_t temp_size;
+	
+	str_ptrlen(&temp_size, nii->name);
+
+	gchar *input_cmd = (gchar *)g_malloc(
+		temp_size * sizeof(gchar) + sizeof("tail -n +3 /proc/net/dev | grep | awk '{print $2\" \"$10}'")
+	);
+
+	g_stpcpy(input_cmd, "tail -n +3 /proc/net/dev | grep ");
+	strcat(input_cmd, nii->name);
+	strcat(input_cmd, " | awk '{print $2\" \"$10}'");
+
+	gchar **down_up = (gchar **)g_malloc(sizeof(gchar *) * 2);
+	temp_size = 0;
+
+/*
+*	Initialize Down/Up Values
+*/
+
+	// Initial Output
+	if ( !(Program_Flag & pf_No_CLI_Output) ){
+
+		tc->output_line = tc->id;
+		CONSOLE_GOTO(0, tc->output_line);
+		g_fprintf(STD, CONSOLE_ERASE_LINE " Network: %-7s\tWaiting for %" PRIu32 "ms...\n", nii->name, tc->interval);	
+		CONSOLE_GOTO(0, Last_Thread_Id + 1);
+		g_fprintf(STD, CONSOLE_ERASE_LINE);
+		fflush(STD);
+
+	}//
+	
+	str_split(&down_up, run_command(input_cmd), ' ', &temp_size);
+
+	str_to_uint64(down_up[0], &nii->down_cache);
+	str_to_uint64(down_up[1], &nii->up_cache);
+
+	free(down_up);
+	free(input_cmd);
+}
+
+void initNetworkInts(resource_ty *netints, rut_config_ty *config, uint16_t *last_thread_id){
+
+	getNetworkInterfaces(netints);
+
+
+	uint16_t i;
+
+	for(i = 0; i < netints->count; i++){
+
+		(netints->threads + i) -> id = (*last_thread_id)++;
+
+		(netints->threads + i) -> interval = config->netint_interval;
+
+		(netints->threads + i) -> alert_usage = config->netint_alert_usage;
+
+		pthread_create( &(netints->threads + i)->thread, NULL, initNetworkInt, netints->threads + i );
+
+	}
+
+	for (i = 0; i < netints->count; i++){ // Join Thread Disks
+
+		pthread_join( (netints->threads + i)->thread, NULL );
+
+	}
+
+	Init_State |= is_Network_Interface;
 }
 
 void initFilesystems(void *thread_container){
@@ -464,6 +538,7 @@ void *getDiskUsage(void *thread_container){
 
 	if( Init_State & is_Disk_io ){
 
+
 		size_t temp_size = 0;
 
 		gchar **read_write 	= ( gchar ** ) g_malloc ( sizeof(gchar *) * 2 );
@@ -475,6 +550,7 @@ void *getDiskUsage(void *thread_container){
 		g_stpcpy(input_cmd, "awk '$3 == \"");
 		strcat(input_cmd, dip->name);
 		strcat(input_cmd, "\" {print $6\"\\t\"$10}' /proc/diskstats");
+
 
 		while( Program_State & ps_Running ){
 
@@ -548,55 +624,12 @@ awk '{if(l1){print $2-l1,$10-l2} else{l1=$2; l2=$10;}}' \
 //tail -n +3 /proc/net/dev | grep NET_INT_NAME | column -t
 void *getNetworkIntUsage(void *thread_container){
 
-/*
-*	Parameter conversion
-*/
+	//initNetworkInt(thread_container);
 
 	resource_thread_ty *tc = (resource_thread_ty *) thread_container;
 
-	struct net_int_info *nip = (struct net_int_info *) tc->parameter;
+	struct net_int_info *nii = (struct net_int_info *) tc->parameter;
 
-/*
-*	Defining Variables
-*/
-
-	size_t temp_size;
-	
-	str_ptrlen(&temp_size, nip->name);
-
-	gchar *input_cmd = (gchar *)g_malloc(
-		temp_size * sizeof(gchar) + sizeof("tail -n +3 /proc/net/dev | grep | awk '{print $2\" \"$10}'")
-	);
-
-	g_stpcpy(input_cmd, "tail -n +3 /proc/net/dev | grep ");
-	strcat(input_cmd, nip->name);
-	strcat(input_cmd, " | awk '{print $2\" \"$10}'");
-
-	gchar ***down_up = (gchar ***)g_malloc(sizeof(gchar **)*2);
-	temp_size = 0;
-
-/*
-*	Initialize Down/Up Values
-*/
-
-	pthread_mutex_lock(&Net_int_Mutex);
-
-	// Initial Output
-	if ( !(Program_Flag & pf_No_CLI_Output) ){
-
-		tc->output_line = tc->id;
-		CONSOLE_GOTO(0, tc->output_line);
-		g_fprintf(STD, CONSOLE_ERASE_LINE " Network: %-7s\tWaiting for %" PRIu32 "ms...\n", nip->name, tc->interval);	
-		CONSOLE_GOTO(0, Last_Thread_Id + 1);
-		g_fprintf(STD, CONSOLE_ERASE_LINE);
-		fflush(STD);
-
-	}//
-	
-	str_split(down_up, run_command(input_cmd), ' ', &temp_size);
-	Init_State |= is_Network_Interface;
-
-	pthread_mutex_unlock(&Net_int_Mutex);
 
 	sleep_ms(tc->interval);
 
@@ -606,25 +639,43 @@ void *getNetworkIntUsage(void *thread_container){
 
 	if( Init_State & is_Network_Interface ){
 
+
+		size_t temp_size;
+	
+		str_ptrlen(&temp_size, nii->name);
+
+		gchar *input_cmd = (gchar *)g_malloc(
+			temp_size * sizeof(gchar) + sizeof("tail -n +3 /proc/net/dev | grep | awk '{print $2\" \"$10}'")
+		);
+
+		g_stpcpy(input_cmd, "tail -n +3 /proc/net/dev | grep ");
+		strcat(input_cmd, nii->name);
+		strcat(input_cmd, " | awk '{print $2\" \"$10}'");
+
+		gchar **down_up = (gchar **)g_malloc(sizeof(gchar *) * 2);
+		temp_size = 0;
+
+
 		while( Program_State & ps_Running ){
 			
 			pthread_mutex_lock(&Net_int_Mutex);
 
-			*(down_up + 1) = *down_up;
+			str_split(&down_up, run_command(input_cmd), ' ', &temp_size);
 
-			str_split(down_up, run_command(input_cmd), ' ', &temp_size);
+			nii -> down_bps = atoll(down_up[0]) - nii -> down_cache; // AD - BD
+			nii -> up_bps 	= atoll(down_up[1]) - nii -> up_cache; // AU - BU
 
-			nip -> down_bps = atoll(down_up[0][0]) - atoll(down_up[1][0]); // AD - BD
-			nip -> up_bps 	= atoll(down_up[0][1]) - atoll(down_up[1][1]); // AU - BU
+			str_to_uint64(down_up[0], &nii -> down_cache);
+			str_to_uint64(down_up[1], &nii -> up_cache);
 			
-			gfloat percentage_usage = (nip->down_bps + nip->up_bps) / (gfloat) (nip->bandwith_mbps * MEGABYTE / 8) * 100.0;
+			gfloat percentage_usage = (nii->down_bps + nii->up_bps) / (gfloat) (nii->bandwith_mbps * MEGABYTE / 8) * 100.0;
 
 			// Output
 			if ( !(Program_Flag & pf_No_CLI_Output) ){
 
 				tc->output_line = tc->id;
 				CONSOLE_GOTO(0, tc->output_line);
-				g_fprintf(STD, CONSOLE_ERASE_LINE " Network: %-10s\tDown: %7s /%" PRIu32 "ms\tUp: %7s /%" PRIu32 "ms  %2.4f%%\n", nip->name, bytes_to_str(nip->down_bps), tc->interval, bytes_to_str(nip->up_bps), tc->interval, percentage_usage);	
+				g_fprintf(STD, CONSOLE_ERASE_LINE " Network: %-10s\tDown: %7s /%" PRIu32 "ms\tUp: %7s /%" PRIu32 "ms  %2.4f%%\n", nii->name, bytes_to_str(nii->down_bps), tc->interval, bytes_to_str(nii->up_bps), tc->interval, percentage_usage);	
 				CONSOLE_GOTO(0, Last_Thread_Id + 1);
 				g_fprintf(STD, CONSOLE_ERASE_LINE);
 				fflush(STD);
@@ -646,14 +697,14 @@ void *getNetworkIntUsage(void *thread_container){
 			PR_VAR("d", type)				\
 			PR_VAR("f", alert_usage)		\
 			PR_VAR("f", percentage_usage)	\
-			PR_VAR("s", down_up[0][0])		\
-			PR_VAR("s", down_up[0][1])		\
-			PR_VAR("s", down_up[1][0])		\
-			PR_VAR("s", down_up[1][1])		\
-			PR_VAR("zu", netint->down_bps)	\
-			PR_VAR("zu", netint->up_bps)	\
+			PR_VAR("zu", nii->down_cache)	\
+			PR_VAR("zu", nii->up_cache)		\
+			PR_VAR("s", down_up[0])			\
+			PR_VAR("s", down_up[1])			\
+			PR_VAR("zu", nii->down_bps)		\
+			PR_VAR("zu", nii->up_bps)		\
 		CYAN_BOLD(" ---\n") 				\
-		, nip->name, tc->id, tc->interval, nip->type, tc->alert_usage, percentage_usage, down_up[0][0], down_up[0][1], down_up[1][0], down_up[1][1], nip->down_bps, nip->up_bps
+		, nii->name, tc->id, tc->interval, nii->type, tc->alert_usage, percentage_usage, nii->down_cache, nii->up_cache, down_up[0], down_up[1], nii->down_bps, nii->up_bps
 	);
 
 #endif
@@ -661,21 +712,20 @@ void *getNetworkIntUsage(void *thread_container){
 
 			pthread_mutex_unlock(&Net_int_Mutex);
 
-			sleep_ms(tc->interval);
+			sleep_ms(tc->interval); 
 
 		}
-	}  else {
 
 		g_free(input_cmd);
 		g_free(down_up);
 
-		g_fprintf(STD, RED_BOLD("[ERROR]") " Disk I/O values are not initialized.\n");
+	}  else {
+
+		g_fprintf(STD, RED_BOLD("[ERROR]") " Network Interface values are not initialized.\n");
 		return NULL;
 
 	}
 
-	g_free(input_cmd);
-	g_free(down_up);
 	return NULL;
 	
 }
@@ -832,7 +882,7 @@ void getCpuTimings(uint32_t *cpu_total, uint32_t *cpu_idle, REQUIRE_WITH_SIZE(gc
 }
 
 //Alternative: tail -n +3 /proc/net/dev | awk '{print $1}' | sed 's/.$//'
-void getNetworkInterfaces(net_ints_ty *netints){
+void getNetworkInterfaces(resource_ty *netints){
 
 	// Get Interface List
 	gchar **netints_temp = NULL;
@@ -858,61 +908,90 @@ void getNetworkInterfaces(net_ints_ty *netints){
 	}//for
 	// LLUN fi eteleD
 
+
+	netints->threads = (resource_thread_ty *)g_malloc(netints->count * sizeof(resource_thread_ty));
+
+	struct net_int_info *nii = (struct net_int_info *)g_malloc(netints->count * sizeof(struct net_int_info));
+
 	for (uint16_t i = 0; i < netints->count; i++){
-		(*(netints + i)).info = (void *)g_malloc(sizeof(struct net_int_info));
-		(*((*netints).info + i)).name = *(netints_temp + i);
+		
+		(nii + i)->name = *(netints_temp + i);
+
 	}
 
 	g_free(netints_temp);
+
 
 	// Get Specs
 	gchar *path = NULL;
 	FILE *net_file = NULL;
 
-	uint16_t filtered_index = 0, arphdr_no = UINT16_MAX;
+	uint16_t 	filtered_index = 0,
+				arphdr_no = UINT16_MAX;
+
 	for (uint16_t i = 0; i < netints->count; i++){
+
 		// Get Type
-		path = realloc(path, sizeof("/sys/class/net//type") + sizeof((*((*netints).info + i)).name));
+		path = realloc(path, sizeof("/sys/class/net//type") + sizeof((nii + i)->name));
+		
 		g_stpcpy(path, "/sys/class/net/");
-		strcat(path, (*((*netints).info + i)).name);
+		strcat(path, (nii + i)->name);
 		strcat(path, "/type");
 
 		net_file = fopen(path, "r");
 
 		fscanf(net_file, "%" PRIu16, &arphdr_no);
 
+
 		// Discard if not an ARP Hardware interface
 		if ( arphdr_no <= ARPHRD_INFINIBAND){
 
 			// Assign to the list
-			(*((*netints).info + filtered_index)).name = (*((*netints).info + i)).name;
-			(*((*netints).info + filtered_index)).type = arphdr_no;
+			(nii + filtered_index)-> name = (nii + i)->name;
+
+			(nii + filtered_index)-> type = arphdr_no;
+
 
 			// Get Bandwith
-			path = realloc(path, sizeof("/sys/class/net//speed") + sizeof((*((*netints).info + filtered_index)).name));
+			path = realloc(path, sizeof("/sys/class/net//speed") + sizeof((nii + filtered_index)->name));
+
 			g_stpcpy(path, "/sys/class/net/");
-			strcat(path, (*((*netints).info + filtered_index)).name);
+			strcat(path, (nii + filtered_index)->name);
 			strcat(path, "/speed");
 
 			net_file = fopen(path, "r");
 
-			fscanf(net_file, "%zu", &((*netints).info + i)->bandwith_mbps);
+
+			fscanf(net_file, "%zu", &(nii + filtered_index)->bandwith_mbps);
+
+			(netints->threads + filtered_index)->parameter = (void *) (nii + filtered_index);
+
 			filtered_index++;
+
+
 		} else {
-			(netints->count)--;
+			(netints->count)--; //todo dealloc
 		}
+
 	}
+
 	g_free(path);
 	fclose(net_file);
 
 #ifdef DEBUG_RUT
+
 	g_fprintf(STD, CYAN_BOLD(" --- getNetworkInterfaces() ---\n"));
+
 	SOUT("d", netints->count);
+
 	g_fprintf(STD, CYAN_BOLD("Network Interfaces:\n"));
+
 	for(uint16_t i = 0 ; i < netints->count; i++){
-		g_fprintf(STD, CYAN_BOLD("- Name:") " %s\n\t" CYAN_BOLD("Type:") " %d\n\t" CYAN_BOLD("Bandwith:") " %lu Mbps\n", (*((*netints).info + i)).name, (*((*netints).info + i)).type, (*((*netints).info + i)).bandwith_mbps);
+		g_fprintf(STD, CYAN_BOLD("- Name:") " %s\n\t" CYAN_BOLD("Type:") " %d\n\t" CYAN_BOLD("Bandwith:") " %lu Mbps\n", (nii + i)->name, (nii + i)->type, (nii + i)->bandwith_mbps);
 	}
+
 	g_fprintf(STD, CYAN_BOLD(" ---\n"));
+
 #endif
 
 }
@@ -1002,7 +1081,7 @@ gchar* getSystemDisk(gchar* os_partition_name, gchar* maj_no){
 // Get all disks from PATH_DISK_STATS
 // Get disks names and maj if minor no is == 0
 // $ cat "PATH_DISK_STATS" | awk '$2 == 0 {print $3}'
-void getAllDisks(disks_ty *disks){
+void getAllDisks(resource_ty *disks){
 
 	gchar **temp = NULL;
 

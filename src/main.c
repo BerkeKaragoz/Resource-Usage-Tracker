@@ -37,13 +37,11 @@ int main (int argc, char * const argv[]){
 
 	cpu_ty cpu;
 	ram_ty ram;
-	disks_ty disks;
+	resource_ty disks;
+	resource_ty netints;
 	filesystems_ty filesystems;
-	net_ints_ty netints;
 
-	resource_thread_ty *disk_io_tcs,
-						*net_int_tcs,
-						cpu_tc,
+	resource_thread_ty 	cpu_tc,
 						ram_tc,
 						fss_tc;
 
@@ -152,9 +150,11 @@ int main (int argc, char * const argv[]){
 		}//switch
 	}
 
-	getNetworkInterfaces(&netints); //Network Interfaces
+
+	initNetworkInts(&netints, &config, &Last_Thread_Id);
 
 	initDisks(&disks, &config, &Last_Thread_Id);
+
 
 	if(disks.count > 1)
 	{
@@ -177,12 +177,6 @@ int main (int argc, char * const argv[]){
 		pthread_create(&tlc.thread, NULL, timeLimit, &tlc);
 	}
 	
-
-/*
-*	Allocate
-*/
-
-	net_int_tcs = g_malloc(netints.count * sizeof(resource_thread_ty));
 
 /*
 *	Create
@@ -225,12 +219,9 @@ int main (int argc, char * const argv[]){
 
 	//Network
 	for (uint16_t i = 0; i < netints.count; i++){ // Get Network Interface Infos
-		(*(net_int_tcs + i)).id = Last_Thread_Id++;
-		(*(net_int_tcs + i)).interval = config.netint_interval;
-		(*(net_int_tcs + i)).alert_usage = config.netint_alert_usage;
-		(net_int_tcs + i) -> parameter = netints.info + i;
 
-		pthread_create( &(net_int_tcs + i)->thread, NULL, getNetworkIntUsage, net_int_tcs + i);
+		pthread_create( &(netints.threads + i)->thread, NULL, getNetworkIntUsage, netints.threads + i);
+
 	}
 	//krowteN
 
@@ -239,11 +230,15 @@ int main (int argc, char * const argv[]){
 */
 
 	for (uint16_t i = 0; i < disks.count; i++){ // Join Thread Disks
+
 		pthread_join( (disks.threads + i)->thread, NULL );
+		
 	}
 
 	for (uint16_t i = 0; i < netints.count; i++){ // Join Thread Network Interfaces
-		pthread_join( (net_int_tcs + i)->thread, NULL );
+
+		pthread_join( (disks.threads + i)->thread, NULL );
+
 	}
 
 	pthread_join(cpu_tc.thread, NULL); // Join Thread CPU
@@ -252,7 +247,6 @@ int main (int argc, char * const argv[]){
 *	Clean Up
 */
 
-	g_free(net_int_tcs);
 	Program_State = ps_Stopped;
 
 #ifdef DEBUG_RUT
