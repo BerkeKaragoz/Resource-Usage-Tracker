@@ -151,13 +151,13 @@ int main (int argc, char * const argv[]){
 	}
 
 
-	initNetworkInts(&netints, &config, &Last_Thread_Id);
+	snapAllNetints(&netints, &config, &Last_Thread_Id);
 
-	initDisks(&disks, &config, &Last_Thread_Id);
+	snapAllDisks(&disks, &config, &Last_Thread_Id);
 
 
 	if(disks.count > 1)
-	{
+	{	
 		
 		getSystemDisk(NULL, NULL); //System Disk
 
@@ -188,7 +188,7 @@ int main (int argc, char * const argv[]){
 	cpu_tc.alert_usage = config.cpu_alert_usage;
 	cpu_tc.parameter = &cpu;
 
-	pthread_create(&cpu_tc.thread, NULL, getCpuUsage, &cpu_tc); // CPU
+	pthread_create(&cpu_tc.thread, NULL, trackCpuUsage, &cpu_tc); // CPU
 	//upC
 
 	//Ram
@@ -197,7 +197,7 @@ int main (int argc, char * const argv[]){
 	ram_tc.alert_usage = config.ram_alert_usage;
 	ram_tc.parameter = &ram;
 
-	pthread_create(&ram_tc.thread, NULL, getRamUsage, &ram_tc);
+	pthread_create(&ram_tc.thread, NULL, trackRamUsage, &ram_tc);
 	//maR
 
 	//Filesystems
@@ -206,13 +206,13 @@ int main (int argc, char * const argv[]){
 	fss_tc.alert_usage = config.filesys_alert_usage;
 	fss_tc.parameter = &filesystems;
 
-	pthread_create(&fss_tc.thread, NULL, getFilesystemsUsage, &fss_tc);
+	pthread_create(&fss_tc.thread, NULL, trackFssUsage, &fss_tc);
 	//smetsyseliF
 
 	//Disk
 	for (uint16_t i = 0; i < disks.count; i++){ // Disks Reads/Writes
 
-		pthread_create( &(disks.threads + i)->thread, NULL, getDiskUsage, disks.threads + i );
+		pthread_create( &(disks.threads + i)->thread, NULL, trackDiskUsage, disks.threads + i );
 
 	}
 	//ksiD
@@ -220,7 +220,7 @@ int main (int argc, char * const argv[]){
 	//Network
 	for (uint16_t i = 0; i < netints.count; i++){ // Get Network Interface Infos
 
-		pthread_create( &(netints.threads + i)->thread, NULL, getNetworkIntUsage, netints.threads + i);
+		pthread_create( &(netints.threads + i)->thread, NULL, trackNetintUsage, netints.threads + i);
 
 	}
 	//krowteN
@@ -237,7 +237,7 @@ int main (int argc, char * const argv[]){
 
 	for (uint16_t i = 0; i < netints.count; i++){ // Join Thread Network Interfaces
 
-		pthread_join( (disks.threads + i)->thread, NULL );
+		pthread_join( (netints.threads + i)->thread, NULL );
 
 	}
 

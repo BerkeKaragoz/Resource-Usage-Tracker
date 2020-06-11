@@ -60,31 +60,6 @@ void sendAlert (resource_thread_ty *thread_container, gfloat usage){
 /*
 *
 */
-
-void init(
-		rut_config_ty *config,
-		uint16_t *last_thread_id,
-		resource_thread_ty *cpu_th,
-		resource_thread_ty *ram_th,
-		resource_thread_ty *fss_th,
-		resource_ty *disks
-	){
-	// TODO
-
-	if (cpu_th != NULL)
-		initCpu(cpu_th);
-
-	if (ram_th != NULL)
-		initRam(ram_th);
-
-	if (fss_th != NULL)
-		initFilesystems(fss_th);
-		
-	if (disks != NULL)
-		initDisks(disks, config, last_thread_id);
-	
-}
-
 void *timeLimit (void *thread_container){
 
 	resource_thread_ty tc = *((resource_thread_ty *) thread_container);
@@ -113,7 +88,97 @@ void *timeLimit (void *thread_container){
 *
 */
 
-void initCpu(void *thread_container){
+void snapAll(
+		rut_config_ty *config,
+		uint16_t *last_thread_id,
+		resource_thread_ty *cpu_th,
+		resource_thread_ty *ram_th,
+		resource_thread_ty *fss_th,
+		resource_ty *disks,
+		resource_ty *netints
+	){
+	// TODO
+
+	if (cpu_th != NULL)
+		snapCpu(cpu_th);
+
+	if (ram_th != NULL)
+		snapRam(ram_th);
+
+	if (fss_th != NULL)
+		snapAllFss(fss_th);
+		
+	if (disks != NULL)
+		snapAllDisks(disks, config, last_thread_id);
+	
+	if (netints != NULL)
+		snapAllNetints(netints, config, last_thread_id);
+	
+}
+
+void snapAllDisks(resource_ty *disks, rut_config_ty *config, uint16_t *last_thread_id){
+
+	getAllDisks(disks);
+
+
+	uint16_t i;
+
+	for(i = 0; i < disks->count; i++){
+
+		(disks->threads + i) -> id = (*last_thread_id)++;
+
+		(disks->threads + i) -> interval = config->disk_interval;
+
+		(disks->threads + i) -> alert_usage = config->disk_alert_usage;
+
+
+		pthread_create( &(disks->threads + i)->thread, NULL, snapDisk, disks->threads + i );
+
+	}
+
+	for (i = 0; i < disks->count; i++){ // Join Thread Disks
+
+		pthread_join( (disks->threads + i)->thread, NULL );
+
+	}
+
+	Init_State |= is_Disk_io;
+
+}
+
+void snapAllNetints(resource_ty *netints, rut_config_ty *config, uint16_t *last_thread_id){
+
+	getNetworkInterfaces(netints);
+
+
+	uint16_t i;
+
+	for(i = 0; i < netints->count; i++){
+
+		(netints->threads + i) -> id = (*last_thread_id)++;
+
+		(netints->threads + i) -> interval = config->netint_interval;
+
+		(netints->threads + i) -> alert_usage = config->netint_alert_usage;
+
+		pthread_create( &(netints->threads + i)->thread, NULL, snapNetint, netints->threads + i );
+
+	}
+
+	for (i = 0; i < netints->count; i++){ // Join Thread Network Ints
+
+		pthread_join( (netints->threads + i)->thread, NULL );
+
+	}
+
+	Init_State |= is_Network_Interface;
+}
+
+/*
+*
+*/
+
+void snapCpu(void *thread_container){
 /*
 *	Test The Parameter
 */
@@ -156,7 +221,7 @@ void initCpu(void *thread_container){
 	pthread_mutex_unlock(&Cpu_Mutex);
 }
 
-void initRam(void *thread_container){
+void snapRam(void *thread_container){
 
 	resource_thread_ty *tc = (resource_thread_ty *) thread_container;
 
@@ -171,14 +236,14 @@ void initRam(void *thread_container){
 	Init_State |= is_Ram;
 }
 
-void *initDisk(void *thread_container){
+void *snapDisk(void *thread_container){
 /*
 *	Parameter conversion
 */
 
 	resource_thread_ty *tc = (resource_thread_ty *) thread_container;
 
-	struct disk_info *dip = (struct disk_info *) tc->parameter; //sumtingwong here
+	struct disk_info *dip = (struct disk_info *) tc->parameter;
 
 /*
 *	Defining Variables
@@ -221,37 +286,7 @@ void *initDisk(void *thread_container){
 
 }
 
-void initDisks(resource_ty *disks, rut_config_ty *config, uint16_t *last_thread_id){
-
-	getAllDisks(disks);
-
-
-	uint16_t i;
-
-	for(i = 0; i < disks->count; i++){
-
-		(disks->threads + i) -> id = (*last_thread_id)++;
-
-		(disks->threads + i) -> interval = config->disk_interval;
-
-		(disks->threads + i) -> alert_usage = config->disk_alert_usage;
-
-
-		pthread_create( &(disks->threads + i)->thread, NULL, initDisk, disks->threads + i );
-
-	}
-
-	for (i = 0; i < disks->count; i++){ // Join Thread Disks
-
-		pthread_join( (disks->threads + i)->thread, NULL );
-
-	}
-
-	Init_State |= is_Disk_io;
-
-}
-
-void *initNetworkInt(void *thread_container){
+void *snapNetint(void *thread_container){
 	
 	resource_thread_ty *tc = (resource_thread_ty *) thread_container;
 
@@ -261,20 +296,16 @@ void *initNetworkInt(void *thread_container){
 *	Defining Variables
 */
 
-	size_t temp_size;
-	
-	str_ptrlen(&temp_size, nii->name);
-
 	gchar *input_cmd = (gchar *)g_malloc(
-		temp_size * sizeof(gchar) + sizeof("tail -n +3 /proc/net/dev | grep | awk '{print $2\" \"$10}'")
+		sizeof(nii->name) * sizeof(gchar) + sizeof("tail -n +3 /proc/net/dev | grep | awk '{print $2\" \"$10}'")
 	);
 
 	g_stpcpy(input_cmd, "tail -n +3 /proc/net/dev | grep ");
 	strcat(input_cmd, nii->name);
 	strcat(input_cmd, " | awk '{print $2\" \"$10}'");
 
+	size_t temp_size = 0;
 	gchar **down_up = (gchar **)g_malloc(sizeof(gchar *) * 2);
-	temp_size = 0;
 
 /*
 *	Initialize Down/Up Values
@@ -301,35 +332,7 @@ void *initNetworkInt(void *thread_container){
 	free(input_cmd);
 }
 
-void initNetworkInts(resource_ty *netints, rut_config_ty *config, uint16_t *last_thread_id){
-
-	getNetworkInterfaces(netints);
-
-
-	uint16_t i;
-
-	for(i = 0; i < netints->count; i++){
-
-		(netints->threads + i) -> id = (*last_thread_id)++;
-
-		(netints->threads + i) -> interval = config->netint_interval;
-
-		(netints->threads + i) -> alert_usage = config->netint_alert_usage;
-
-		pthread_create( &(netints->threads + i)->thread, NULL, initNetworkInt, netints->threads + i );
-
-	}
-
-	for (i = 0; i < netints->count; i++){ // Join Thread Disks
-
-		pthread_join( (netints->threads + i)->thread, NULL );
-
-	}
-
-	Init_State |= is_Network_Interface;
-}
-
-void initFilesystems(void *thread_container){
+void snapAllFss(void *thread_container){
 
 	resource_thread_ty *tc = (resource_thread_ty *) thread_container;
 
@@ -339,9 +342,44 @@ void initFilesystems(void *thread_container){
 	pthread_mutex_lock(&File_sys_Mutex);
 
 	getPhysicalFilesystems(fss);
+
+	// Output
+	if ( !(Program_Flag & pf_No_CLI_Output) ){
+
+		pthread_mutex_lock(&File_sys_Mutex);
+
+		CONSOLE_GOTO(0, Last_Thread_Id + 2);
+		g_fprintf(STD, "Filesystems:");
+
+		for(uint32_t i = 0; i < fss->count; i++){
+			
+			size_t total_size = ( (fss->info + i)->used + (fss->info + i)->available);
+			
+			gfloat percentage_usage = (fss->info + i)->used / (gfloat) total_size * 100.0;
+
+			tc->output_line = Last_Thread_Id + 3 + i;
+			CONSOLE_GOTO(0, tc->output_line);
+			g_fprintf(STD, CONSOLE_ERASE_LINE " %s:\t%s / %s \t %2.2f%% \n", (fss->info + i)->partition, bytes_to_str((fss->info + i)->used), bytes_to_str(total_size), percentage_usage);
+
+			if (percentage_usage >= tc->alert_usage){
+				sendAlert(tc, percentage_usage);
+			}
+
+		}
+
+		CONSOLE_GOTO(0, Last_Thread_Id + 1);
+		g_fprintf(STD, CONSOLE_ERASE_LINE);
+
+		fflush(STD);
+
+		pthread_mutex_unlock(&File_sys_Mutex);
+
+	}
+
 	Init_State |= is_Filesystems;
 
 	pthread_mutex_unlock(&File_sys_Mutex);
+
 }
 
 /*
@@ -350,9 +388,9 @@ void initFilesystems(void *thread_container){
 
 // 1000 ms is min. stable
 // cat <(grep cpu /proc/stat) <(sleep 0.1 && grep cpu /proc/stat) | awk -v RS="" '{printf "%.1f", ($13-$2+$15-$4)*100/($13-$2+$15-$4+$16-$5)}
-void *getCpuUsage(void *thread_container){
+void *trackCpuUsage(void *thread_container){
 
-	initCpu(thread_container);
+	snapCpu(thread_container);
 
 
 	resource_thread_ty *tc = (resource_thread_ty *) thread_container;
@@ -415,7 +453,7 @@ void *getCpuUsage(void *thread_container){
 			}
 
 			g_fprintf(STD,
-				CYAN_BOLD(" --- getCpuUsage() --- Thread: %d\n")	\
+				CYAN_BOLD(" --- trackCpuUsage() --- Thread: %d\n")	\
 					PR_VAR("f", USAGE)			\
 					PR_VAR("f", Alert_Usage)		\
 					PR_VAR(PRIu32, Cpu_Interval)	\
@@ -443,9 +481,9 @@ void *getCpuUsage(void *thread_container){
 	return NULL;
 }
 
-void *getRamUsage(void *thread_container){
+void *trackRamUsage(void *thread_container){
 
-	initRam(thread_container);
+	snapRam(thread_container);
 
 	resource_thread_ty *tc = (resource_thread_ty *) thread_container;
 
@@ -491,7 +529,7 @@ void *getRamUsage(void *thread_container){
 		}
 
 		g_fprintf(STD,
-			CYAN_BOLD(" --- getRamUsage() --- Thread: %d\n") \
+			CYAN_BOLD(" --- trackRamUsage() --- Thread: %d\n") \
 				PR_VAR(PRIu32, Ram_Interval)	\
 				PR_VAR("f", percentage_usage)	\
 				PR_VAR("f", alert_usage)		\
@@ -520,9 +558,9 @@ void *getRamUsage(void *thread_container){
 }
 
 // $ awk '$3 == "<DISK_NAME>" {print $6"\t"$10}' /proc/diskstats
-void *getDiskUsage(void *thread_container){
+void *trackDiskUsage(void *thread_container){
 
-	//initDisk(thread_container);
+	//snapDisk(thread_container);
 
 
 	resource_thread_ty *tc = (resource_thread_ty *) thread_container;
@@ -580,7 +618,7 @@ void *getDiskUsage(void *thread_container){
 
 #ifdef DEBUG_RUT
 	g_fprintf(STD,
-		CYAN_BOLD(" --- getDiskUsage(")"%s"CYAN_BOLD(") --- Thread: %d\n") \
+		CYAN_BOLD(" --- trackDiskUsage(")"%s"CYAN_BOLD(") --- Thread: %d\n") \
 			PR_VAR("d", Disk_Interval)		\
 			PR_VAR("zu", read_cache)		\
 			PR_VAR("zu", write_cache)		\
@@ -622,9 +660,9 @@ awk '{if(l1){print $2-l1,$10-l2} else{l1=$2; l2=$10;}}' \
 <(grep NET_INT_NAME /proc/net/dev) <(sleep 1; grep NET_INT_NAME /proc/net/dev)
 */
 //tail -n +3 /proc/net/dev | grep NET_INT_NAME | column -t
-void *getNetworkIntUsage(void *thread_container){
+void *trackNetintUsage(void *thread_container){
 
-	//initNetworkInt(thread_container);
+	snapNetint(thread_container);
 
 	resource_thread_ty *tc = (resource_thread_ty *) thread_container;
 
@@ -692,7 +730,7 @@ void *getNetworkIntUsage(void *thread_container){
 	}
 
 	g_fprintf(STD,
-		CYAN_BOLD(" --- getNetworkIntUsage(") "%s" CYAN_BOLD(") --- Thread: %d\n") \
+		CYAN_BOLD(" --- trackNetintUsage(") "%s" CYAN_BOLD(") --- Thread: %d\n") \
 			PR_VAR("d", interval)			\
 			PR_VAR("d", type)				\
 			PR_VAR("f", alert_usage)		\
@@ -730,9 +768,9 @@ void *getNetworkIntUsage(void *thread_container){
 	
 }
 
-void *getFilesystemsUsage(void *thread_container){
+void *trackFssUsage(void *thread_container){
 
-	initFilesystems(thread_container);
+	snapAllFss(thread_container); 
 
 /*
 *	Parameter Conversion
@@ -742,7 +780,8 @@ void *getFilesystemsUsage(void *thread_container){
 
 	filesystems_ty *fss = (filesystems_ty *) tc->parameter;
 
-	
+	sleep_ms(tc->interval);
+
 /*
 *	Get RAM Usage Till The Program Stops
 */
@@ -750,7 +789,7 @@ void *getFilesystemsUsage(void *thread_container){
 	if( Init_State & is_Filesystems ){
 
 		while( Program_State & ps_Running ){
-			//TODO alert
+
 			// Output
 			if ( !(Program_Flag & pf_No_CLI_Output) ){
 
@@ -797,7 +836,7 @@ void *getFilesystemsUsage(void *thread_container){
 			}
 
 			g_fprintf(STD,
-				CYAN_BOLD(" --- getFilesystemsUsage(%s) --- Thread: %d\n") \
+				CYAN_BOLD(" --- trackFssUsage(%s) --- Thread: %d\n") \
 					PR_VAR(PRIu32, FSS_Interval)	\
 					PR_VAR("f", alert_usage)		\
 					PR_VAR("f", percentage_usage)	\
@@ -835,8 +874,10 @@ void *getFilesystemsUsage(void *thread_container){
 *
 */
 
-// Get CPU's snapshot
-// grep cpu /proc/stat
+/*
+* Get CPU's snapshot
+* grep cpu /proc/stat
+*/
 void getCpuTimings(uint32_t *cpu_total, uint32_t *cpu_idle, REQUIRE_WITH_SIZE(gchar *, cpu_identifier)){
 
 	*cpu_total = 0;
@@ -996,91 +1037,11 @@ void getNetworkInterfaces(resource_ty *netints){
 
 }
 
-/*
-*
+/* 
+*  Get all disks from PATH_DISK_STATS
+*  Get disks names and maj if minor no is == 0
+*  $ cat "PATH_DISK_STATS" | awk '$2 == 0 {print $3}'
 */
-
-// Find the first VARIABLE in PATH and return its numeric value
-int64_t getFirstVarNumValue( const gchar* path, REQUIRE_WITH_SIZE(const gchar*, variable), const uint16_t variable_column_no ){
-	uint64_t output = 0;
-	const gchar delim[2] = " ";
-	gchar 	*token 	= NULL,
-			*temp 	= NULL;
-
-	readSearchGetFirstLine(&temp, path, PASS_WITH_SIZE_VAR(variable), variable_column_no, PASS_WITH_SIZEOF(delim));
-
-	strtok(temp, delim);
-	token = strtok(NULL, delim); // skip VARIABLE
-	
-
-	if (token) {
-		output = atoll(token) * KILOBYTE; // Convert to BYTE
-	} else {
-		g_fprintf(STD, RED_BOLD("[ERROR]") " Could NOT parse the value of: "RED_BOLD("%s")"\n", variable);
-		return 0;
-	}
-#ifdef DEBUG_RUT
-	g_fprintf(STD, CYAN_BOLD("getFirstVarNumValue()")" | %s = %" PRId64 "\n", variable, output);
-#endif
-	g_free(temp);
-	return output;
-}
-
-// Get the current OS disk
-gchar* getSystemDisk(gchar* os_partition_name, gchar* maj_no){
-
-	os_partition_name = NULL;
-	maj_no = NULL;
-	
-	gchar 	*output = NULL,
-			*temp 	= NULL;
-
-	readSearchGetFirstLine(&temp, PATH_MOUNT_STATS, PASS_WITH_SIZEOF("/"), 5, PASS_WITH_SIZEOF(" "));
-
-	getColumn(
-		&os_partition_name,
-		temp,
-		2,
-		PASS_WITH_SIZEOF(" ")
-	);
-
-	g_free(temp);
-	temp = (gchar *) g_malloc (sizeof(gchar));
-
-	const uint16_t os_partition_name_size = leftTrimTill(os_partition_name, '/'); // Trim path
-	readSearchGetFirstLine(&temp, PATH_DISK_STATS, PASS_WITH_SIZE_VAR(os_partition_name), 3, PASS_WITH_SIZEOF(" "));
-
-	getColumn(
-		&maj_no,
-		temp,
-		1,
-		PASS_WITH_SIZEOF(" ")
-	);
-
-	g_free(temp);
-	temp = (gchar *) g_malloc (sizeof(gchar));
-
-	readSearchGetFirstLine(&temp, PATH_DISK_STATS, PASS_WITH_SIZEOF(maj_no), 1, PASS_WITH_SIZEOF(" "));
-
-	getColumn(
-		&output,
-		temp,
-		3,
-		PASS_WITH_SIZEOF(" ")
-	);
-
-	g_free(temp);
-
-#ifdef DEBUG_RUT
-	g_fprintf(STD, CYAN_BOLD("getSystemDisk()")" | output = %s | os_partition_name = %s | maj_no = %s\n", output, os_partition_name, maj_no);
-#endif
-
-	return output;
-}
-
-// Get all disks from PATH_DISK_STATS
-// Get disks names and maj if minor no is == 0
-// $ cat "PATH_DISK_STATS" | awk '$2 == 0 {print $3}'
 void getAllDisks(resource_ty *disks){
 
 	gchar **temp = NULL;
@@ -1193,6 +1154,88 @@ void getPhysicalFilesystems(filesystems_ty *filesystems){
 		g_fprintf(STD, CYAN_BOLD(" ---\n"));
 #endif
 
+}
+
+// Find the first VARIABLE in PATH and return its numeric value
+int64_t getFirstVarNumValue( const gchar* path, REQUIRE_WITH_SIZE(const gchar*, variable), const uint16_t variable_column_no ){
+	uint64_t output = 0;
+	const gchar delim[2] = " ";
+	gchar 	*token 	= NULL,
+			*temp 	= NULL;
+
+	readSearchGetFirstLine(&temp, path, PASS_WITH_SIZE_VAR(variable), variable_column_no, PASS_WITH_SIZEOF(delim));
+
+	strtok(temp, delim);
+	token = strtok(NULL, delim); // skip VARIABLE
+	
+
+	if (token) {
+		output = atoll(token) * KILOBYTE; // Convert to BYTE
+	} else {
+		g_fprintf(STD, RED_BOLD("[ERROR]") " Could NOT parse the value of: "RED_BOLD("%s")"\n", variable);
+		return 0;
+	}
+#ifdef DEBUG_RUT
+	g_fprintf(STD, CYAN_BOLD("getFirstVarNumValue()")" | %s = %" PRId64 "\n", variable, output);
+#endif
+	g_free(temp);
+	return output;
+}
+
+/*
+*
+*/
+
+// Get the current OS disk
+gchar* getSystemDisk(gchar* os_partition_name, gchar* maj_no){
+
+	os_partition_name = NULL;
+	maj_no = NULL;
+	
+	gchar 	*output = NULL,
+			*temp 	= NULL;
+
+	readSearchGetFirstLine(&temp, PATH_MOUNT_STATS, PASS_WITH_SIZEOF("/"), 5, PASS_WITH_SIZEOF(" "));
+
+	getColumn(
+		&os_partition_name,
+		temp,
+		2,
+		PASS_WITH_SIZEOF(" ")
+	);
+
+	g_free(temp);
+	temp = (gchar *) g_malloc (sizeof(gchar));
+
+	const uint16_t os_partition_name_size = leftTrimTill(os_partition_name, '/'); // Trim path
+	readSearchGetFirstLine(&temp, PATH_DISK_STATS, PASS_WITH_SIZE_VAR(os_partition_name), 3, PASS_WITH_SIZEOF(" "));
+
+	getColumn(
+		&maj_no,
+		temp,
+		1,
+		PASS_WITH_SIZEOF(" ")
+	);
+
+	g_free(temp);
+	temp = (gchar *) g_malloc (sizeof(gchar));
+
+	readSearchGetFirstLine(&temp, PATH_DISK_STATS, PASS_WITH_SIZEOF(maj_no), 1, PASS_WITH_SIZEOF(" "));
+
+	getColumn(
+		&output,
+		temp,
+		3,
+		PASS_WITH_SIZEOF(" ")
+	);
+
+	g_free(temp);
+
+#ifdef DEBUG_RUT
+	g_fprintf(STD, CYAN_BOLD("getSystemDisk()")" | output = %s | os_partition_name = %s | maj_no = %s\n", output, os_partition_name, maj_no);
+#endif
+
+	return output;
 }
 
 

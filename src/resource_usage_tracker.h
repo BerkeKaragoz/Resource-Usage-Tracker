@@ -132,30 +132,31 @@ extern enum initialization_states 	Init_State;
 // Functions
 void		sendAlert				(resource_thread_ty *thread_container, gfloat usage);
 
-void 		init					(rut_config_ty *config, uint16_t *last_thread_id, resource_thread_ty *cpu_th, resource_thread_ty *ram_th, resource_thread_ty *fss_th, resource_ty *disks);
 void *		timeLimit				(void *thread_container);
 
-void 		initCpu					(void *thread_container);
-void 		initRam					(void *thread_container);
-void *		initDisk				(void *thread_container);
-void 		initDisks				(resource_ty *disks, rut_config_ty *config, uint16_t *last_thread_id);
-void *		initNetworkInt			(void *thread_container);
-void 		initNetworkInts			(resource_ty *netints, rut_config_ty *config, uint16_t *last_thread_id);
-void 		initFilesystems			(void *thread_container);
+void 		snapAll					(rut_config_ty *config, uint16_t *last_thread_id, resource_thread_ty *cpu_th, resource_thread_ty *ram_th, resource_thread_ty *fss_th, resource_ty *disks, resource_ty *netints);
+void 		snapAllDisks			(resource_ty *disks, rut_config_ty *config, uint16_t *last_thread_id);
+void 		snapAllNetints			(resource_ty *netints, rut_config_ty *config, uint16_t *last_thread_id);
 
-void * 		getCpuUsage				(void *thread_container);
-void *		getRamUsage				(void *thread_container);
-void *		getDiskUsage			(void *thread_container);
-void *		getNetworkIntUsage		(void *thread_container);
-void *		getFilesystemsUsage		(void *thread_container);
+void 		snapCpu					(void *thread_container);
+void 		snapRam					(void *thread_container);
+void *		snapDisk				(void *thread_container);
+void *		snapNetint				(void *thread_container);
+void 		snapAllFss				(void *thread_container);
+
+void * 		trackCpuUsage			(void *thread_container);
+void *		trackRamUsage			(void *thread_container);
+void *		trackDiskUsage			(void *thread_container);
+void *		trackNetintUsage		(void *thread_container);
+void *		trackFssUsage			(void *thread_container);
 
 void 		getCpuTimings			(uint32_t *cpu_total, uint32_t *cpu_idle, REQUIRE_WITH_SIZE(gchar *, cpu_identifier));
 void 		getNetworkInterfaces	(resource_ty *netints);
-
-int64_t 	getFirstVarNumValue		(const gchar* path, REQUIRE_WITH_SIZE(const gchar*, variable), const uint16_t variable_column_no );
-gchar * 	getSystemDisk			(gchar* os_partition_name, gchar* maj_no);
 void 		getAllDisks				(resource_ty *disks);
 void 		getPhysicalFilesystems	(filesystems_ty *filesystems);
+int64_t 	getFirstVarNumValue		(const gchar* path, REQUIRE_WITH_SIZE(const gchar*, variable), const uint16_t variable_column_no ); // Mostly RAM related
+
+gchar * 	getSystemDisk			(gchar* os_partition_name, gchar* maj_no);
 
 
 #endif
