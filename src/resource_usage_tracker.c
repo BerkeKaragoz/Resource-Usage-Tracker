@@ -94,8 +94,8 @@ void snapAll(
 		resource_thread_ty *cpu_th,
 		resource_thread_ty *ram_th,
 		resource_thread_ty *fss_th,
-		resource_ty *disks,
-		resource_ty *netints
+		resources_ty *disks,
+		resources_ty *netints
 	){
 	// TODO
 
@@ -106,7 +106,7 @@ void snapAll(
 		snapRam(ram_th);
 
 	if (fss_th != NULL)
-		snapAllFss(fss_th);
+		snapFss(fss_th);
 		
 	if (disks != NULL)
 		snapAllDisks(disks, config, last_thread_id);
@@ -116,7 +116,7 @@ void snapAll(
 	
 }
 
-void snapAllDisks(resource_ty *disks, rut_config_ty *config, uint16_t *last_thread_id){
+void snapAllDisks(resources_ty *disks, rut_config_ty *config, uint16_t *last_thread_id){
 
 	getAllDisks(disks);
 
@@ -146,7 +146,7 @@ void snapAllDisks(resource_ty *disks, rut_config_ty *config, uint16_t *last_thre
 
 }
 
-void snapAllNetints(resource_ty *netints, rut_config_ty *config, uint16_t *last_thread_id){
+void snapAllNetints(resources_ty *netints, rut_config_ty *config, uint16_t *last_thread_id){
 
 	getNetworkInterfaces(netints);
 
@@ -178,7 +178,7 @@ void snapAllNetints(resource_ty *netints, rut_config_ty *config, uint16_t *last_
 *
 */
 
-void snapCpu(void *thread_container){
+void *snapCpu(void *thread_container){
 /*
 *	Test The Parameter
 */
@@ -215,22 +215,25 @@ void snapCpu(void *thread_container){
 
 	}//
 
-	getCpuTimings(&c->total, &c->idle, PASS_WITH_SIZEOF("cpu"));
+	tc->cache_time = getCpuTimings(&c->total, &c->idle, PASS_WITH_SIZEOF("cpu"));
+
 	Init_State |= is_Cpu;
+
 
 	pthread_mutex_unlock(&Cpu_Mutex);
 }
 
-void snapRam(void *thread_container){
+void *snapRam(void *thread_container){
 
 	resource_thread_ty *tc = (resource_thread_ty *) thread_container;
 
 	ram_ty *r = (ram_ty *) tc->parameter;
 
 
-	r->capacity = getFirstVarNumValue(PATH_MEM_INFO, PASS_WITH_SIZEOF("MemTotal:"), 0);
+	r->capacity = getFirstVarNumValue(PATH_MEM_INFO, PASS_WITH_SIZEOF("MemTotal:"	), 0);
+	r->usage 	= getFirstVarNumValue(PATH_MEM_INFO, PASS_WITH_SIZEOF("Active:"		), 0);
 
-	r->usage = getFirstVarNumValue(PATH_MEM_INFO, PASS_WITH_SIZEOF("Active:"), 0);
+	tc->cache_time = g_get_monotonic_time();
 
 
 	Init_State |= is_Ram;
@@ -258,7 +261,7 @@ void *snapDisk(void *thread_container){
 	strcat(input_cmd, "\" {print $6\"\\t\"$10}' /proc/diskstats");
 
 	size_t temp_size = 0;
-	gchar **read_write 	= ( gchar ** ) g_malloc ( sizeof(gchar *) * 2 );
+	gchar **read_write = ( gchar ** ) g_malloc ( sizeof(gchar *) * 2 );
 
 /*
 *	Initialize I/O Values
@@ -276,13 +279,19 @@ void *snapDisk(void *thread_container){
 
 	}//
 
-	str_split(&read_write, run_command(input_cmd), '\t', &temp_size);
+	gchar *command_output = run_command(input_cmd);  //hold output for percise timing
+
+	tc->cache_time = g_get_monotonic_time();
+
+	str_split(&read_write, command_output, '\t', &temp_size);
 
 	str_to_uint64(read_write[0], &dip->read_cache);
 	str_to_uint64(read_write[1], &dip->write_cache);
 
+
 	free(read_write);
 	free(input_cmd);
+	command_output = NULL;
 
 }
 
@@ -305,7 +314,7 @@ void *snapNetint(void *thread_container){
 	strcat(input_cmd, " | awk '{print $2\" \"$10}'");
 
 	size_t temp_size = 0;
-	gchar **down_up = (gchar **)g_malloc(sizeof(gchar *) * 2);
+	gchar **down_up = ( gchar ** ) g_malloc ( sizeof(gchar *) * 2);
 
 /*
 *	Initialize Down/Up Values
@@ -323,16 +332,23 @@ void *snapNetint(void *thread_container){
 
 	}//
 	
-	str_split(&down_up, run_command(input_cmd), ' ', &temp_size);
+
+	gchar *command_output = run_command(input_cmd); //hold output for percise timing
+	
+	tc->cache_time = g_get_monotonic_time();
+
+	str_split(&down_up, command_output, ' ', &temp_size);
 
 	str_to_uint64(down_up[0], &nii->down_cache);
 	str_to_uint64(down_up[1], &nii->up_cache);
 
+
 	free(down_up);
 	free(input_cmd);
+	command_output = NULL;
 }
 
-void snapAllFss(void *thread_container){
+void *snapFss(void *thread_container){
 
 	resource_thread_ty *tc = (resource_thread_ty *) thread_container;
 
@@ -341,7 +357,7 @@ void snapAllFss(void *thread_container){
 
 	pthread_mutex_lock(&File_sys_Mutex);
 
-	getPhysicalFilesystems(fss);
+	tc->cache_time = getPhysicalFilesystems(fss);
 
 	// Output
 	if ( !(Program_Flag & pf_No_CLI_Output) ){
@@ -418,7 +434,7 @@ void *trackCpuUsage(void *thread_container){
 			prev_idle 	= c->idle;
 			prev_total 	= c->total;
 
-			getCpuTimings(&c->total, &c->idle, PASS_WITH_SIZEOF("cpu"));
+			tc->cache_time = getCpuTimings(&c->total, &c->idle, PASS_WITH_SIZEOF("cpu"));
 		
 			usage = 100.0 * ( 1.0 - (gfloat)(c->idle - prev_idle) / (gfloat)(c->total - prev_total) );
 			
@@ -454,13 +470,14 @@ void *trackCpuUsage(void *thread_container){
 
 			g_fprintf(STD,
 				CYAN_BOLD(" --- trackCpuUsage() --- Thread: %d\n")	\
-					PR_VAR("f", USAGE)			\
+					PR_VAR("f", USAGE)				\
 					PR_VAR("f", Alert_Usage)		\
 					PR_VAR(PRIu32, Cpu_Interval)	\
 					PR_VAR(PRId32, delta-idle)		\
 					PR_VAR(PRId32, delta-total)		\
+					PR_VAR(PRId64, cache-time)		\
 				CYAN_BOLD(" ---\n") 				\
-				, tc->id, usage, tc->alert_usage, tc->interval, c->idle - prev_idle, c->total - prev_total
+				, tc->id, usage, tc->alert_usage, tc->interval, c->idle - prev_idle, c->total - prev_total, tc->cache_time
 			);
 #endif
 			// tuptuO
@@ -500,6 +517,9 @@ void *trackRamUsage(void *thread_container){
 		while( Program_State & ps_Running ){
 
 			r->usage = getFirstVarNumValue(PATH_MEM_INFO, PASS_WITH_SIZEOF("Active:"), 0);
+
+			tc->cache_time = g_get_monotonic_time();
+
 			
 			pthread_mutex_lock(&Ram_Mutex);
 
@@ -533,10 +553,11 @@ void *trackRamUsage(void *thread_container){
 				PR_VAR(PRIu32, Ram_Interval)	\
 				PR_VAR("f", percentage_usage)	\
 				PR_VAR("f", alert_usage)		\
-				PR_VAR("zu", usage)			\
-				PR_VAR("zu", capacity)		\
+				PR_VAR("zu", usage)				\
+				PR_VAR("zu", capacity)			\
+				PR_VAR(PRId64, cache-time)		\
 			CYAN_BOLD(" ---\n") 				\
-			, tc->id, tc->interval, percentage_usage, tc->alert_usage, r->usage, r->capacity 
+			, tc->id, tc->interval, percentage_usage, tc->alert_usage, r->usage, r->capacity, tc->cache_time
 		);
 #endif
 			// tuptuO
@@ -560,7 +581,7 @@ void *trackRamUsage(void *thread_container){
 // $ awk '$3 == "<DISK_NAME>" {print $6"\t"$10}' /proc/diskstats
 void *trackDiskUsage(void *thread_container){
 
-	//snapDisk(thread_container);
+	snapDisk(thread_container);
 
 
 	resource_thread_ty *tc = (resource_thread_ty *) thread_container;
@@ -594,8 +615,14 @@ void *trackDiskUsage(void *thread_container){
 
 			pthread_mutex_lock(&Disk_io_Mutex);
 		
+			gchar* command_output = run_command(input_cmd); // hold output for precise timing
 
-			str_split(&read_write, run_command(input_cmd), '\t', &temp_size);
+			tc->cache_time = g_get_monotonic_time();
+
+			str_split(&read_write, command_output, '\t', &temp_size);
+
+			command_output = NULL;
+
 
 			dip -> read_bytes  	 = atoll(read_write[0]) - dip -> read_cache;
 			dip -> written_bytes = atoll(read_write[1]) - dip -> write_cache;
@@ -626,8 +653,9 @@ void *trackDiskUsage(void *thread_container){
 			PR_VAR("s", read_write[1])		\
 			PR_VAR("d", dip->read_bytes)	\
 			PR_VAR("d", dip->written_bytes)	\
+			PR_VAR(PRId64, cache-time)		\
 		CYAN_BOLD(" ---\n") 				\
-		, dip->name, tc->id, tc->interval, dip->read_cache, dip->write_cache, read_write[0], read_write[1], dip->read_bytes, dip->written_bytes
+		, dip->name, tc->id, tc->interval, dip->read_cache, dip->write_cache, read_write[0], read_write[1], dip->read_bytes, dip->written_bytes, tc->cache_time
 	);
 #endif
 			// tuptuO
@@ -698,7 +726,14 @@ void *trackNetintUsage(void *thread_container){
 			
 			pthread_mutex_lock(&Net_int_Mutex);
 
-			str_split(&down_up, run_command(input_cmd), ' ', &temp_size);
+			gchar* command_output = run_command(input_cmd); // hold output for precise timing
+
+			tc->cache_time = g_get_monotonic_time();
+
+			str_split(&down_up, command_output, ' ', &temp_size);
+
+			command_output = NULL;
+
 
 			nii -> down_bps = atoll(down_up[0]) - nii -> down_cache; // AD - BD
 			nii -> up_bps 	= atoll(down_up[1]) - nii -> up_cache; // AU - BU
@@ -731,8 +766,8 @@ void *trackNetintUsage(void *thread_container){
 
 	g_fprintf(STD,
 		CYAN_BOLD(" --- trackNetintUsage(") "%s" CYAN_BOLD(") --- Thread: %d\n") \
-			PR_VAR("d", interval)			\
-			PR_VAR("d", type)				\
+			PR_VAR(PRIu32, interval)			\
+			PR_VAR(PRIu16, type)				\
 			PR_VAR("f", alert_usage)		\
 			PR_VAR("f", percentage_usage)	\
 			PR_VAR("zu", nii->down_cache)	\
@@ -741,8 +776,9 @@ void *trackNetintUsage(void *thread_container){
 			PR_VAR("s", down_up[1])			\
 			PR_VAR("zu", nii->down_bps)		\
 			PR_VAR("zu", nii->up_bps)		\
+			PR_VAR(PRId64, cache-time)		\
 		CYAN_BOLD(" ---\n") 				\
-		, nii->name, tc->id, tc->interval, nii->type, tc->alert_usage, percentage_usage, nii->down_cache, nii->up_cache, down_up[0], down_up[1], nii->down_bps, nii->up_bps
+		, nii->name, tc->id, tc->interval, nii->type, tc->alert_usage, percentage_usage, nii->down_cache, nii->up_cache, down_up[0], down_up[1], nii->down_bps, nii->up_bps, tc->cache_time
 	);
 
 #endif
@@ -770,7 +806,7 @@ void *trackNetintUsage(void *thread_container){
 
 void *trackFssUsage(void *thread_container){
 
-	snapAllFss(thread_container); 
+	snapFss(thread_container); 
 
 /*
 *	Parameter Conversion
@@ -842,8 +878,9 @@ void *trackFssUsage(void *thread_container){
 					PR_VAR("f", percentage_usage)	\
 					PR_VAR(PRId64, used)			\
 					PR_VAR(PRId64, capacity)		\
+					PR_VAR(PRId64, cache-time)		\
 				CYAN_BOLD(" ---\n") 				\
-				, (fss->info + i)->partition, tc->id, tc->interval, tc->alert_usage, percentage_usage, (fss->info + i)->used, total_size
+				, (fss->info + i)->partition, tc->id, tc->interval, tc->alert_usage, percentage_usage, (fss->info + i)->used, total_size, tc->cache_time
 			);
 		}
 	
@@ -852,10 +889,14 @@ void *trackFssUsage(void *thread_container){
 
 			// tuptuO
 
+
 			sleep_ms(tc->interval);
 
+
 			pthread_mutex_lock(&File_sys_Mutex);
-			getPhysicalFilesystems(fss);
+
+			tc->cache_time = getPhysicalFilesystems(fss);
+
 			pthread_mutex_unlock(&File_sys_Mutex);
 
 		}
@@ -878,7 +919,7 @@ void *trackFssUsage(void *thread_container){
 * Get CPU's snapshot
 * grep cpu /proc/stat
 */
-void getCpuTimings(uint32_t *cpu_total, uint32_t *cpu_idle, REQUIRE_WITH_SIZE(gchar *, cpu_identifier)){
+gint64 getCpuTimings(uint32_t *cpu_total, uint32_t *cpu_idle, REQUIRE_WITH_SIZE(gchar *, cpu_identifier)){
 
 	*cpu_total = 0;
 	*cpu_idle = 0;
@@ -888,7 +929,10 @@ void getCpuTimings(uint32_t *cpu_total, uint32_t *cpu_idle, REQUIRE_WITH_SIZE(gc
 	gchar 	*token 	= NULL,
 			*temp 	= NULL;
 
+
 	readSearchGetFirstLine(&temp, PATH_CPU_STATS, PASS_WITH_SIZE_VAR(cpu_identifier), 1, PASS_WITH_SIZEOF(" "));
+
+	gint64 read_time = g_get_monotonic_time();
 
 	strtok(temp, delim);
 	token = strtok(NULL, delim); // skip cpu_id
@@ -919,16 +963,23 @@ void getCpuTimings(uint32_t *cpu_total, uint32_t *cpu_idle, REQUIRE_WITH_SIZE(gc
 	}// while
 
 	g_free(temp);
-	return;
+	return read_time;
 }
 
 //Alternative: tail -n +3 /proc/net/dev | awk '{print $1}' | sed 's/.$//'
-void getNetworkInterfaces(resource_ty *netints){
+gint64 getNetworkInterfaces(resources_ty *netints){
 
 	// Get Interface List
 	gchar **netints_temp = NULL;
 
-	str_split(&netints_temp, run_command("ls /sys/class/net/"), '\n', (size_t *) &netints->count);
+	gchar *command_output = run_command("ls /sys/class/net/");  //hold output for percise timing
+
+	gint64 read_time = g_get_monotonic_time();
+
+	str_split(&netints_temp, command_output, '\n', (size_t *) &netints->count);
+
+	command_output = NULL;
+
 
 	// Delete if NULL
 	if (*netints_temp == NULL){
@@ -1035,6 +1086,8 @@ void getNetworkInterfaces(resource_ty *netints){
 
 #endif
 
+	return read_time;
+
 }
 
 /* 
@@ -1042,11 +1095,18 @@ void getNetworkInterfaces(resource_ty *netints){
 *  Get disks names and maj if minor no is == 0
 *  $ cat "PATH_DISK_STATS" | awk '$2 == 0 {print $3}'
 */
-void getAllDisks(resource_ty *disks){
+gint64 getAllDisks(resources_ty *disks){
 
 	gchar **temp = NULL;
 
-	str_split(&temp , run_command("awk '$2 == 0 {print $3}' "PATH_DISK_STATS), '\n', (size_t *) &disks->count);
+	gchar *command_output = run_command("awk '$2 == 0 {print $3}' "PATH_DISK_STATS);  //hold output for percise timing
+
+	gint64 read_time = g_get_monotonic_time();
+
+	str_split(&temp , command_output, '\n', (size_t *) &disks->count);
+
+	command_output = NULL;
+
 
 	// Delete if NULL
 	if (*temp == NULL){
@@ -1096,13 +1156,23 @@ void getAllDisks(resource_ty *disks){
 	g_fprintf(STD, CYAN_BOLD(" ---\n"));
 #endif
 
+	return read_time;
+
 }
 
 // df --type btrfs --type ext4 --type ext3 --type ext2 --type vfat --type iso9660 --block-size=1 | tail -n +2 | awk {'print $1" "$2" "$3" "$4'}
-void getPhysicalFilesystems(filesystems_ty *filesystems){
+gint64 getPhysicalFilesystems(filesystems_ty *filesystems){
+
 	gchar **filesystems_temp = NULL;
 	
-	str_split(&filesystems_temp, run_command("df --type btrfs --type ext4 --type ext3 --type ext2 --type vfat --type iso9660 --block-size=1 | tail -n +2 | awk {'print $1\" \"$2\" \"$3\" \"$4\" X\"'}"), '\n', (size_t *) &filesystems->count);
+	gchar *command_output = run_command("df --type btrfs --type ext4 --type ext3 --type ext2 --type vfat --type iso9660 --block-size=1 | tail -n +2 | awk {'print $1\" \"$2\" \"$3\" \"$4\" X\"'}");// hold output for percise timing
+
+	gint64 read_time = g_get_monotonic_time();
+
+	str_split(&filesystems_temp, command_output, '\n', (size_t *) &filesystems->count);
+
+	command_output = NULL;
+
 
 	// Delete if NULL
 	if (*filesystems_temp == NULL){
@@ -1122,6 +1192,8 @@ void getPhysicalFilesystems(filesystems_ty *filesystems){
 		
 	}//for
 	// LLUN fi eteleD
+
+
 	size_t info_field_count = 0;
 	gchar **fsi_temp = NULL;
 	for (i = 0; i < filesystems->count; i++){
@@ -1138,21 +1210,32 @@ void getPhysicalFilesystems(filesystems_ty *filesystems){
 
 	}
 
+
 	g_free(fsi_temp);
 	g_free(filesystems_temp);
 
+
 #ifdef DEBUG_RUT
+
 		g_fprintf(STD, CYAN_BOLD(" --- getPhysicalFilesystems() ---\n"));
+
 		SOUT("d", filesystems->count);
 		g_fprintf(STD, CYAN_BOLD("Filesystems:\n"));
+
 		for(uint16_t i = 0 ; i < filesystems->count; i++){
+
 			g_fprintf(STD, CYAN_BOLD("- Partition: ")"\t%s\n", (*((*filesystems).info + i)).partition);
 			g_fprintf(STD, CYAN_BOLD("- Byte blocks: ")"\t%zu\n", (*((*filesystems).info + i)).block_size);
 			g_fprintf(STD, CYAN_BOLD("- Used: ")"\t%zu\n", (*((*filesystems).info + i)).used);
 			g_fprintf(STD, CYAN_BOLD("- Available: ")"\t%zu\n", (*((*filesystems).info + i)).available);
+
 		}
+
 		g_fprintf(STD, CYAN_BOLD(" ---\n"));
 #endif
+
+
+	return read_time;
 
 }
 

@@ -23,7 +23,7 @@
 uint16_t Last_Thread_Id = 1;
 
 
-int main (int argc, char * const argv[]){
+int run (int *argc, char * const argv[]){
 #ifdef DEBUG_RUT
 	clock_t _begin = clock();
 #else
@@ -37,8 +37,8 @@ int main (int argc, char * const argv[]){
 
 	cpu_ty cpu;
 	ram_ty ram;
-	resource_ty disks;
-	resource_ty netints;
+	resources_ty disks;
+	resources_ty netints;
 	filesystems_ty filesystems;
 
 	resource_thread_ty 	cpu_tc,
@@ -64,7 +64,7 @@ int main (int argc, char * const argv[]){
 	extern char* optarg;
 	int32_t opt;
 
-	while ((opt = getopt(argc, argv, "hqt:c:C:r:R:f:F:d:D:n:N:x")) != -1){
+	while ((opt = getopt(*argc, argv, "hqt:c:C:r:R:f:F:d:D:n:N:x")) != -1){
 
 		switch (opt) {
 			case 'x':
@@ -164,7 +164,7 @@ int main (int argc, char * const argv[]){
 	} else if (disks.count == 0) {
 
 		g_fprintf(STD, RED_BOLD("[ERROR]")" Could not get the disks!\n");
-		exit(EXIT_FAILURE);
+		//exit(EXIT_FAILURE);
 
 	}
 
@@ -254,4 +254,10 @@ int main (int argc, char * const argv[]){
 	fprintf(STD, "\nExecution time: %lf\n", (double)(_end - _begin) / CLOCKS_PER_SEC);
 #endif
 	return (EXIT_SUCCESS);
+}
+
+int main (int argc, char * const argv[]){
+
+	return run(&argc, argv);
+
 }
