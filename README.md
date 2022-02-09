@@ -4,6 +4,15 @@
 
 CPU, RAM, Disk, Network...
 
+![image](https://user-images.githubusercontent.com/34271483/153210475-e521f504-3d86-4f4c-a8ac-00e3a329731c.png)
+
 ---
 
-Will be continued to developing less intensively as from 13-Jun-2020.
+## Dependencies
+`sudo apt install libglib2.0-dev libxml2-dev`
+
+### Make
+`make`: builds to the `/build` directory.
+
+### Run
+`./resource_usage_tracker`
