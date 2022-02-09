@@ -18,6 +18,9 @@ jobs:
     - run: cat /proc/diskstats
     - run: cat /proc/self/mountstats
     - run: cat /proc/meminfo
+    
+    - name: Install dependencies
+      run: sudo apt install -y libglib2.0-dev libxml2-dev
 
     - name: Compile and Run for Half a Minute
       run: make -f ./Makefile ARGS="-t 30000"
