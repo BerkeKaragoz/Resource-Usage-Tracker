@@ -2,7 +2,9 @@
 
 ![C CI](https://github.com/BerkeKaragoz/Resource-Usage-Tracker/workflows/C%20CI/badge.svg) [![Codacy Badge](https://api.codacy.com/project/badge/Grade/e531974075fe4548985e7a14f92b5a4f)](https://app.codacy.com/manual/e.berkekaragoz/Resource-Usage-Tracker?utm_source=github.com&utm_medium=referral&utm_content=BerkeKaragoz/Resource-Usage-Tracker&utm_campaign=Badge_Grade_Settings)
 
-CPU, RAM, Disk, Network...
+Tracks CPU, RAM, Disk, Network...
+
+![image](https://user-images.githubusercontent.com/34271483/153236607-9f44632d-0b9e-4f4c-b67a-2697cf90f608.png)
 
 ## Commands
 
