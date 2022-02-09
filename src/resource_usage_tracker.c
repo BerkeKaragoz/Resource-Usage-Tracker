@@ -636,7 +636,7 @@ void *trackDiskUsage(void *thread_container){
 			if ( !(Program_Flag & pf_No_CLI_Output) ){
 
 				CONSOLE_GOTO(0, tc->id);
-				g_fprintf(STD, CONSOLE_ERASE_LINE " Disk: %-7s\tRead: %7s /%" PRIu32 "ms\tWrite: %7s /%" PRIu32 "ms\n", dip->name, bytes_to_str(dip->read_bytes), tc->interval, bytes_to_str(dip->written_bytes), tc->interval);	
+				g_fprintf(STD, CONSOLE_ERASE_LINE " Disk: %-10s\tRead: %7s /%" PRIu32 "ms\tWrite: %7s /%" PRIu32 "ms\n", dip->name, bytes_to_str(dip->read_bytes), tc->interval, bytes_to_str(dip->written_bytes), tc->interval);	
 				CONSOLE_GOTO(0, Last_Thread_Id + 1);
 				g_fprintf(STD, CONSOLE_ERASE_LINE);
 				fflush(STD);

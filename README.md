@@ -4,9 +4,8 @@
 
 CPU, RAM, Disk, Network...
 
-![image](https://user-images.githubusercontent.com/34271483/153210475-e521f504-3d86-4f4c-a8ac-00e3a329731c.png)
-
 ## Commands
+
 `resource_usage_tracker -h`:
 
 ![image](https://user-images.githubusercontent.com/34271483/153215705-e7787431-e434-4f3e-9afe-facd031c916d.png)
@@ -14,10 +13,18 @@ CPU, RAM, Disk, Network...
 ---
 
 ## Dependencies
+
 `sudo apt install libglib2.0-dev libxml2-dev`
 
 ### Make
+
 `make`: builds to the `/build` directory.
 
 ### Run
+
 `./resource_usage_tracker`
+
+### Debug Mode
+
+`DEBUG_RUT`
+![image](https://user-images.githubusercontent.com/34271483/153210475-e521f504-3d86-4f4c-a8ac-00e3a329731c.png)
